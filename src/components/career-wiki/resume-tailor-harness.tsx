@@ -1320,7 +1320,7 @@ function TailorRunsPanel({
             <ListBlock title={`${selectedVersion.versionName} · ${labelForStatus(selectedVersion.status)}`} items={[`${selectedVersion.company} · ${selectedVersion.role}`]} />
             <ListBlock
               title="导出前检查清单"
-              items={selectedVersion.checklist.map((item) => `${item.passed ? "通过" : "阻断"} · ${item.label}${item.reason ? `：${item.reason}` : ""}`)}
+              items={selectedVersion.checklist.map((item) => `${item.passed ? "通过" : "阻断"} · ${cleanChecklistLabel(item.label)}${item.reason ? `：${cleanChecklistLabel(item.reason)}` : ""}`)}
             />
             <ListBlock title="Diff" items={selectedVersion.diffSummary.projectBullets.slice(0, 6)} />
             <ListBlock title="证据校验" items={selectedVersion.evidenceSummary.map((item) => `${item.valid ? "通过" : "阻断"} · ${item.section} · ${item.evidenceSource}`)} />
@@ -1439,7 +1439,7 @@ function ResumeVersionsPanel({
             ))}
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <ListBlock title="导出前检查清单" items={selected.checklist.map((item) => `${item.passed ? "通过" : "阻断"} · ${item.label}${item.reason ? `：${item.reason}` : ""}`)} />
+            <ListBlock title="导出前检查清单" items={selected.checklist.map((item) => `${item.passed ? "通过" : "阻断"} · ${cleanChecklistLabel(item.label)}${item.reason ? `：${cleanChecklistLabel(item.reason)}` : ""}`)} />
             <ListBlock title="风险提示" items={selected.riskNotes} />
             <ListBlock title="Diff · Project Bullets" items={selected.diffSummary.projectBullets} />
             <ListBlock title="证据校验" items={selected.evidenceSummary.map((item) => `${item.valid ? "通过" : "阻断"} · ${item.content}`)} />
@@ -1603,4 +1603,14 @@ function sectionTitle(section: ResumeTailorHarnessSection) {
 
 function formatError(error: unknown) {
   return error instanceof Error ? error.message : "请求失败";
+}
+
+function cleanChecklistLabel(value: string) {
+  return value
+    .replace(/API Key\s*\/\s*Cookie\s*\/\s*token/gi, "敏感凭据")
+    .replace(/API Key/gi, "敏感凭据")
+    .replace(/Cookie/gi, "敏感凭据")
+    .replace(/token/gi, "敏感凭据")
+    .replace(/password/gi, "敏感凭据")
+    .replace(/secret/gi, "敏感凭据");
 }

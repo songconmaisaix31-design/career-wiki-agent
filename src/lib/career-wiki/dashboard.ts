@@ -77,6 +77,17 @@ async function getCounts() {
 }
 
 async function count(sql: string) {
-  const rows = await prisma.$queryRawUnsafe<CountRow[]>(sql);
-  return Number(rows[0]?.count ?? 0);
+  try {
+    const rows = await prisma.$queryRawUnsafe<CountRow[]>(sql);
+    return Number(rows[0]?.count ?? 0);
+  } catch (error) {
+    if (isMissingRuntimeTableError(error)) return 0;
+    throw error;
+  }
+}
+
+function isMissingRuntimeTableError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const meta = (error as { meta?: { message?: unknown } }).meta;
+  return typeof meta?.message === "string" && meta.message.includes("no such table");
 }
