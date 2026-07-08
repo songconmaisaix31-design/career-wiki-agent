@@ -138,6 +138,12 @@ AI features stay disabled until the settings are saved and the connection test s
 
 ## Release Notes
 
+### Career Wiki Agent local line
+
+- Career Wiki Agent extends this codebase as a local-first workflow for Career Profile, Project Bank, Skill Matrix, JD analysis, Resume Tailor, Project Fit, Evidence Editor, multi-template resume rendering, and Obsidian export.
+- The local line intentionally excludes automatic job application, recruiting platform crawling, login automation, HR messaging, cookie management, proxy pools, captcha bypass, and login-state automation.
+- Current production-quality work focuses on workflow state, audit logs, evidence quality review, operations checks, sensitive-content guards, and safer final resume export.
+
 ### v0.1.6
 
 - Fixed Dashboard due follow-up calculation: applied roles without a manual follow-up now use seven days after applying as the suggested follow-up date.
