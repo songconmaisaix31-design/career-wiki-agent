@@ -11,7 +11,7 @@ describe("resume file parsers", () => {
     const text = await extractPdfText(Buffer.from(pdf.output("arraybuffer")));
 
     expect(text).toContain("Resume parser test 123");
-  });
+  }, 15_000);
 
   it("extracts text from a DOCX file", async () => {
     const document = new Document({

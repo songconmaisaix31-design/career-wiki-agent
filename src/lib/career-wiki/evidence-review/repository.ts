@@ -28,15 +28,6 @@ type ReviewRow = {
   updatedAt: Date | string;
 };
 
-type DuplicateGroupRow = {
-  id: string;
-  jdTestId: string;
-  itemIds: unknown;
-  reason: string;
-  status: string;
-  createdAt: Date | string;
-};
-
 type JdRow = {
   id: string;
   company: string;
