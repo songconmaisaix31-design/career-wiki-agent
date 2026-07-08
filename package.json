@@ -8,7 +8,10 @@
     "build": "next build",
     "test": "vitest run",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "career:backup": "node --no-warnings --experimental-strip-types scripts/career-wiki-backup.ts",
+    "career:healthcheck": "node --no-warnings --experimental-strip-types scripts/career-wiki-healthcheck.ts",
+    "career:integrity": "node --no-warnings --experimental-strip-types scripts/career-wiki-integrity-check.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.48",
