@@ -164,6 +164,30 @@ export const evidenceExportInputSchema = z.object({
   jdTestId: z.string().trim().default(""),
 });
 
+export const workflowStartInputSchema = z.object({
+  name: z.string().trim().optional(),
+  jdTestId: z.string().trim().optional(),
+  resumeVersionId: z.string().trim().optional(),
+});
+
+export const workflowTransitionInputSchema = z.object({
+  workflowRunId: z.string().trim().min(1),
+  toState: z.enum([
+    "profile_ready",
+    "projects_ready",
+    "skills_ready",
+    "jd_imported",
+    "project_fit_reviewed",
+    "evidence_reviewed",
+    "resume_drafted",
+    "diff_reviewed",
+    "resume_approved",
+    "exported",
+    "archived",
+  ]),
+  reason: z.string().trim().optional(),
+});
+
 export type CareerProfileInput = z.infer<typeof careerProfileInputSchema>;
 export type CareerProjectInput = z.infer<typeof careerProjectInputSchema>;
 export type CareerSkillInput = z.infer<typeof careerSkillInputSchema>;
@@ -180,3 +204,5 @@ export type EvidenceInput = z.infer<typeof evidenceInputSchema>;
 export type EvidenceUpdateInput = z.infer<typeof evidenceUpdateInputSchema>;
 export type EvidenceDeleteInput = z.infer<typeof evidenceDeleteInputSchema>;
 export type EvidenceExportInput = z.infer<typeof evidenceExportInputSchema>;
+export type WorkflowStartInput = z.infer<typeof workflowStartInputSchema>;
+export type WorkflowTransitionInput = z.infer<typeof workflowTransitionInputSchema>;
