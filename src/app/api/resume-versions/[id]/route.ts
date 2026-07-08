@@ -8,7 +8,9 @@ const resumeVersionSchema = z.object({
   content: z.unknown(),
 });
 
-export async function PATCH(request: Request, context: RouteContext<"/api/resume-versions/[id]">) {
+type IdRouteContext = { params: Promise<{ id: string }> };
+
+export async function PATCH(request: Request, context: IdRouteContext) {
   const { id } = await context.params;
   const body = resumeVersionSchema.parse(await request.json());
   const version = await updateResumeVersion({
@@ -31,7 +33,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/resume
   });
 }
 
-export async function DELETE(_request: Request, context: RouteContext<"/api/resume-versions/[id]">) {
+export async function DELETE(_request: Request, context: IdRouteContext) {
   const { id } = await context.params;
   await deleteResumeVersion(id);
   return Response.json({ ok: true });

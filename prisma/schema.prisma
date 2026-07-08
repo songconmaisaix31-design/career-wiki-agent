@@ -127,3 +127,85 @@ model Settings {
   aiLastTestStatus String    @default("untested")
   updatedAt        DateTime  @updatedAt
 }
+
+model CareerProfile {
+  id              String   @id @default("singleton")
+  name            String   @default("")
+  targetRoles     Json
+  education       String   @default("")
+  currentPosition String   @default("")
+  summary         String   @default("")
+  strengths       Json
+  weaknesses      Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model CareerProject {
+  id             String   @id @default(cuid())
+  name           String
+  status         String   @default("active")
+  description    String   @default("")
+  techStack      Json
+  highlights     Json
+  resumeBullets  Json
+  interviewStory String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model CareerSkill {
+  id               String   @id @default(cuid())
+  name             String
+  category         String   @default("general")
+  level            String   @default("learning")
+  evidence         String   @default("")
+  learningPriority String   @default("medium")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model CareerJdAnalysis {
+  id                String   @id @default(cuid())
+  company           String
+  role              String
+  source            String   @default("")
+  jdText            String
+  responsibilities  Json
+  requiredSkills    Json
+  bonusPoints       Json
+  matchedProjects   Json
+  skillGaps         Json
+  matchScore        Int      @default(0)
+  resumeSuggestions Json
+  interviewTips     Json
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  learningTasks CareerLearningTask[]
+}
+
+model CareerLearningTask {
+  id             String   @id @default(cuid())
+  title          String
+  description    String   @default("")
+  relatedSkill   String   @default("")
+  priority       String   @default("medium")
+  dayIndex       Int
+  estimatedTime  String   @default("60 min")
+  outputRequired String   @default("")
+  status         String   @default("todo")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  jdAnalysisId String
+  jdAnalysis   CareerJdAnalysis @relation(fields: [jdAnalysisId], references: [id], onDelete: Cascade)
+}
+
+model CareerExportLog {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  filePath   String
+  createdAt  DateTime @default(now())
+}

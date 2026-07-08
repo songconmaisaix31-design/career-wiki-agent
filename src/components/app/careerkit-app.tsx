@@ -712,6 +712,9 @@ export function CareerKitApp({
             <DashboardWorkspace
               summary={dashboard}
               onNavigate={navigateTo}
+              onOpenCareerWiki={() => {
+                window.location.href = "/career-wiki/profile";
+              }}
               onAddApplication={() => {
                 navigateTo("pipeline");
                 setPipelineAddOpen(true);
@@ -935,4 +938,3 @@ function emptyResume(): ResumeContent {
     selfReview: "",
   };
 }
-

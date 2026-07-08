@@ -15,7 +15,9 @@ const applicationSchema = z.object({
   resumeVersionId: z.string().nullable().optional(),
 });
 
-export async function PATCH(request: Request, context: RouteContext<"/api/applications/[id]">) {
+type IdRouteContext = { params: Promise<{ id: string }> };
+
+export async function PATCH(request: Request, context: IdRouteContext) {
   const { id } = await context.params;
   const input = applicationSchema.parse(await request.json());
   const application = await updateApplication({

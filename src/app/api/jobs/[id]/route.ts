@@ -22,7 +22,9 @@ const updateJobSchema = z.object({
   notes: z.string().optional(),
 });
 
-export async function PATCH(request: Request, context: RouteContext<"/api/jobs/[id]">) {
+type IdRouteContext = { params: Promise<{ id: string }> };
+
+export async function PATCH(request: Request, context: IdRouteContext) {
   const { id } = await context.params;
   const input = updateJobSchema.parse(await request.json());
   const result = await updateJobWithApplication({
@@ -46,7 +48,7 @@ export async function PATCH(request: Request, context: RouteContext<"/api/jobs/[
   return Response.json(result);
 }
 
-export async function DELETE(_request: Request, context: RouteContext<"/api/jobs/[id]">) {
+export async function DELETE(_request: Request, context: IdRouteContext) {
   const { id } = await context.params;
   await deleteJobWithApplications(id);
   return Response.json({ ok: true });

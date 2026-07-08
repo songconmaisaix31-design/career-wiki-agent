@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  BookOpen,
   BriefcaseBusiness,
   CalendarClock,
   ClipboardList,
@@ -24,6 +25,7 @@ type DashboardWorkspaceProps = {
   summary: DashboardSummary;
   onNavigate: (target: DashboardTarget) => void;
   onAddApplication: () => void;
+  onOpenCareerWiki: () => void;
 };
 
 const priorityRowMeta = [
@@ -41,7 +43,7 @@ const stageMeta: Record<Exclude<ApplicationStatus, "READY">, { bar: string }> = 
   ARCHIVED: { bar: "bg-zinc-400" },
 };
 
-export function DashboardWorkspace({ summary, onNavigate, onAddApplication }: DashboardWorkspaceProps) {
+export function DashboardWorkspace({ summary, onNavigate, onAddApplication, onOpenCareerWiki }: DashboardWorkspaceProps) {
   const t = useTranslations("app.dashboard");
   const maxStageCount = Math.max(1, ...Object.values(summary.stageCounts));
 
@@ -101,6 +103,7 @@ export function DashboardWorkspace({ summary, onNavigate, onAddApplication }: Da
           <div className="divide-y divide-line">
             <QuickAction icon={FilePenLine} label={t("quickActions.resume")} onClick={() => onNavigate("resume")} />
             <QuickAction icon={Target} label={t("quickActions.match")} onClick={() => onNavigate("match")} />
+            <QuickAction icon={BookOpen} label="Career Wiki" onClick={onOpenCareerWiki} />
             <QuickAction icon={Plus} label={t("quickActions.pipeline")} onClick={onAddApplication} />
             <QuickAction icon={Mic} label={t("quickActions.interview")} onClick={() => onNavigate("interview")} />
           </div>

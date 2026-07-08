@@ -12,4 +12,6 @@
 - Use existing Next.js, TypeScript, Prisma, Vitest, ESLint, and npm stack.
 - Use rule-based fallback logic for JD analysis and 7-day learning task generation so base functionality works without LLM credentials.
 - Use timestamped export filenames when a Markdown destination already exists to avoid data loss.
-
+- 2026-07-08: Career Wiki MVP is implemented as independent `/career-wiki/*` routes plus `/api/career-wiki/*` endpoints, with a dashboard entry link from the original app.
+- 2026-07-08: Career Wiki runtime creates its own tables through `ensureCareerWikiSchema()` so local SQLite startup works even before a manual migration run.
+- 2026-07-08: In this environment, Prisma engine download from the default source hit `ECONNRESET`; one-time `npx prisma generate` succeeded with `PRISMA_ENGINES_MIRROR=https://registry.npmmirror.com/-/binary/prisma`.
