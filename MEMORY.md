@@ -20,3 +20,6 @@
 - 2026-07-08: Next suggested phase is Resume Tailor MVP, using Career Wiki materials to produce resume version suggestions while keeping rule-based fallback.
 - 2026-07-08: Resume Tailor Test Harness uses explicit dry-run/apply for Wiki import, Markdown-only baseline resume import, rule-based resume tailoring, and Obsidian exports to `05_Resume_Versions`, `03_JD_Library`, `04_Learning_Tasks`, and `08_Test_Runs`.
 - 2026-07-08: WIP/prototype/MVP project status must stay visible in generated resume drafts; unsupported JD skills go to `missingEvidence` instead of final resume claims.
+- 2026-07-08: Resume Tailor MVP adds `CareerResumeVersion` as the Career Wiki-specific review artifact rather than reusing the original app `ResumeVersion` model, keeping Career Wiki approval/export state separate from LuJie CareerKit's resume editor.
+- 2026-07-08: Approved final resume export is blocked by a shared checklist: baseline selected, JD selected, markdown exists, evidence validation passes, no unsupported content, no missing evidence text, no production-ready overclaim, no secret keywords, no recruiting platform account wording, no empty bullets, and diff exists.
+- 2026-07-08: Final resume export allows repeat exports for already `exported` versions and relies on timestamped unique filenames to avoid overwriting Obsidian files.

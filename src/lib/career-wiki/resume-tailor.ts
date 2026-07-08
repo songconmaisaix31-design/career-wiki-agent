@@ -116,7 +116,7 @@ function isLowSignalProject(name: string) {
 
 function selectSkills(analysis: CareerJdAnalysisView, skills: CareerSkillView[], baselineSkills: string[]) {
   const evidence = new Set([...skills.map((skill) => skill.name.toLowerCase()), ...baselineSkills.map((skill) => skill.toLowerCase())]);
-  return analysis.requiredSkills.filter((skill) => evidence.has(skill.toLowerCase()));
+  return analysis.requiredSkills.filter((skill) => hasSkillEvidence(skill, evidence));
 }
 
 function findMissingEvidence(
@@ -130,7 +130,7 @@ function findMissingEvidence(
     ...selectedProjects.flatMap((project) => [project.name, ...project.techStack]).map((item) => item.toLowerCase()),
     ...baseline.skills.map((item) => item.toLowerCase()),
   ]);
-  return analysis.requiredSkills.filter((skill) => !known.has(skill.toLowerCase()));
+  return analysis.requiredSkills.filter((skill) => !hasSkillEvidence(skill, known));
 }
 
 function buildRiskNotes(projects: CareerProjectView[]) {
@@ -143,14 +143,15 @@ function rewriteProjectBullets(project: CareerProjectView, analysis: CareerJdAna
   const safeStatus = /wip|prototype|mvp|semi-finished|draft/i.test(project.status)
     ? `（项目状态：${project.status}）`
     : "";
-  const base = project.resumeBullets.length ? project.resumeBullets : project.highlights;
+  const base = (project.resumeBullets.length ? project.resumeBullets : project.highlights).filter((item) => !hasUnconfirmedEvidenceText(item));
   if (!base.length) return [`${project.name}${safeStatus}: 基于已有 Wiki 记录，可围绕 ${analysis.role} 补充可验证项目证据。`];
   return base.slice(0, 3).map((bullet) => `${project.name}${safeStatus}: ${bullet}`);
 }
 
 function rewriteWorkExperience(baseline: ResumeBaselineView, analysis: CareerJdAnalysisView) {
-  if (!baseline.workExperience.length) return [];
-  return baseline.workExperience
+  const evidenceItems = baseline.workExperience.filter((item) => !isPlaceholderText(item));
+  if (!evidenceItems.length) return [];
+  return evidenceItems
     .slice(0, 5)
     .map((item) => `${item}；表达重点对齐 ${analysis.role} 的职责要求。`);
 }
@@ -161,9 +162,10 @@ function buildTargetedSummary(
   targetedSkills: string[],
   projects: CareerProjectView[],
 ) {
+  const safeSummary = isPlaceholderText(baseline.selfSummary) ? "候选人" : baseline.selfSummary || "候选人";
   const skillText = targetedSkills.slice(0, 5).join("、") || "岗位相关技能";
-  const projectText = projects.map((project) => `[[${project.name}]]`).join("、") || "已有项目素材";
-  return `${baseline.selfSummary || "候选人"}。针对 ${jdTest.role}，重点呈现 ${skillText} 与 ${projectText} 的可验证经验。`;
+  const projectText = projects.map((project) => `[[${project.name}]]（${project.status}）`).join("、") || "已有项目素材";
+  return `${safeSummary}。针对 ${jdTest.role}，重点呈现 ${skillText} 与 ${projectText} 的可验证经验。`;
 }
 
 function buildComparisonReport({
@@ -217,6 +219,8 @@ function renderTailoredResume({
   rewrittenProjectBullets: string[];
   rewrittenWorkExperience: string[];
 }) {
+  const safeWorkExperience = rewrittenWorkExperience.length ? rewrittenWorkExperience : baseline.workExperience.filter((item) => !isPlaceholderText(item));
+  const safeEducation = baseline.education.filter((item) => !isPlaceholderText(item));
   return [
     "---",
     `type: \"tailored_resume\"`,
@@ -236,10 +240,10 @@ function renderTailoredResume({
     formatList(rewrittenProjectBullets),
     "",
     "## 工作经历",
-    formatList(rewrittenWorkExperience.length ? rewrittenWorkExperience : baseline.workExperience),
+    formatList(safeWorkExperience),
     "",
     "## 教育背景",
-    formatList(baseline.education),
+    formatList(safeEducation),
     "",
     "## 项目状态说明",
     formatList(selectedProjects.map((project) => `${project.name}: ${project.status}`)),
@@ -291,5 +295,24 @@ function firstParagraph(markdown: string) {
 }
 
 function formatList(items: string[]) {
-  return items.length ? items.map((item) => `- ${item}`).join("\n") : "- TODO";
+  return items.length ? items.map((item) => `- ${item}`).join("\n") : "- 暂无可验证内容";
+}
+
+function hasSkillEvidence(skill: string, evidence: Set<string>) {
+  const key = skill.toLowerCase();
+  if (evidence.has(key)) return true;
+  const aliases: Record<string, string[]> = {
+    ai: ["agent", "llm", "rag"],
+    automation: ["playwright", "cdp", "adb", "python"],
+    javascript: ["typescript", "next.js", "react"],
+  };
+  return (aliases[key] ?? []).some((alias) => evidence.has(alias));
+}
+
+function isPlaceholderText(text: string) {
+  return /TODO|待填写|请替换|补充/.test(text);
+}
+
+function hasUnconfirmedEvidenceText(text: string) {
+  return /证据尚需确认|入口尚需确认|unknown|not approved|not completed or verified|not found|production_ready|needs.*confirmation/i.test(text);
 }

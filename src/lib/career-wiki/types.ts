@@ -148,6 +148,57 @@ export type ResumeTailorRunView = {
   updatedAt: string;
 };
 
+export type ResumeVersionStatus = "draft" | "approved" | "exported" | "archived";
+
+export type ResumeEvidenceSource = "wiki_project" | "wiki_workflow" | "wiki_changelog" | "baseline_resume" | "user_input";
+
+export type ResumeEvidenceItem = {
+  section: string;
+  content: string;
+  evidenceSource: ResumeEvidenceSource | "missing_evidence" | "unknown";
+  sourceLabel: string;
+  valid: boolean;
+  blockingReason: string;
+};
+
+export type ResumeDiffSummary = {
+  summary: string[];
+  skills: string[];
+  projectBullets: string[];
+  workExperience: string[];
+  education: string[];
+  addedKeywords: string[];
+  removedContent: string[];
+  rewrittenContent: string[];
+  riskContent: string[];
+  unsupportedContent: string[];
+};
+
+export type ResumeExportChecklistItem = {
+  key: string;
+  label: string;
+  passed: boolean;
+  reason: string;
+};
+
+export type CareerResumeVersionView = {
+  id: string;
+  baselineId: string;
+  jdTestId: string;
+  tailorRunId: string;
+  company: string;
+  role: string;
+  versionName: string;
+  status: ResumeVersionStatus;
+  finalResumeMarkdown: string;
+  diffSummary: ResumeDiffSummary;
+  evidenceSummary: ResumeEvidenceItem[];
+  riskNotes: string[];
+  exportPath: string;
+  checklist: ResumeExportChecklistItem[];
+  updatedAt: string;
+};
+
 export type CareerWikiData = {
   profile: CareerProfileView;
   projects: CareerProjectView[];
@@ -158,12 +209,16 @@ export type CareerWikiData = {
   baselines?: ResumeBaselineView[];
   jdTests?: CareerJdTestView[];
   tailorRuns?: ResumeTailorRunView[];
+  resumeVersions?: CareerResumeVersionView[];
   vaultConfigured: boolean;
 };
 
 export type ResumeTailorHarnessData = {
   baselines: ResumeBaselineView[];
   jdTests: CareerJdTestView[];
+  projects: CareerProjectView[];
+  skills: CareerSkillView[];
   tailorRuns: ResumeTailorRunView[];
+  resumeVersions: CareerResumeVersionView[];
   vaultConfigured: boolean;
 };

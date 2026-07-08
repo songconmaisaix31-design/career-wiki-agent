@@ -8,7 +8,7 @@ import { getTestHarnessData } from "@/lib/career-wiki/test-harness-repository";
 export const dynamic = "force-dynamic";
 
 const sections: CareerWikiSection[] = ["profile", "projects", "skills", "jd-analyzer", "learning-tasks"];
-const harnessSections: ResumeTailorHarnessSection[] = ["wiki-import", "resume-baseline", "resume-tests", "resume-tailor"];
+const harnessSections: ResumeTailorHarnessSection[] = ["wiki-import", "resume-baseline", "resume-tests", "resume-tailor", "resume-versions"];
 
 export default async function CareerWikiSectionPage({ params }: { params: Promise<{ section: string }> }) {
   const { section } = await params;

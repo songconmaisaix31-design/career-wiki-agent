@@ -260,3 +260,21 @@ model ResumeTailorRun {
   jdTestId   String
   jdTest     CareerJdTest   @relation(fields: [jdTestId], references: [id], onDelete: Cascade)
 }
+
+model CareerResumeVersion {
+  id                  String   @id @default(cuid())
+  baselineId          String
+  jdTestId            String
+  tailorRunId         String
+  company             String
+  role                String
+  versionName         String
+  status              String   @default("draft")
+  finalResumeMarkdown String
+  diffSummary         Json
+  evidenceSummary     Json
+  riskNotes           Json
+  exportPath          String   @default("")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}

@@ -1,19 +1,22 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 
-import type { CareerJdTest, Prisma, ResumeBaseline, ResumeTailorRun } from "@prisma/client";
+import type { CareerJdTest, CareerResumeVersion, Prisma, ResumeBaseline, ResumeTailorRun } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { buildWikiImportPreview, mergeStringList } from "./wiki-importer";
+import { assertChecklistPassed, buildEvidenceSummary, buildExportChecklist, buildResumeDiff } from "./resume-version";
 import { createTailorRunDraft, parseBaselineMarkdown } from "./resume-tailor";
-import type { CareerJdTestInput, ResumeBaselineInput } from "./schemas";
+import type { CareerJdTestInput, ResumeBaselineInput, ResumeVersionCreateInput } from "./schemas";
 import type {
+  CareerResumeVersionView,
   CareerJdAnalysisView,
   CareerJdTestView,
   CareerProjectView,
   CareerSkillView,
   ResumeBaselineView,
   ResumeComparisonReport,
+  ResumeEvidenceItem,
   ResumeTailorHarnessData,
   ResumeTailorRunView,
   WikiImportPreview,
@@ -23,15 +26,21 @@ const DEFAULT_BASELINE_PATH = "D:\\AI-Workspace\\CareerVault\\05_Resume_Versions
 
 export async function getTestHarnessData(): Promise<ResumeTailorHarnessData> {
   await ensureResumeTailorSchema();
-  const [baselines, jdTests, tailorRuns] = await Promise.all([
+  const [baselines, jdTests, projects, skills, tailorRuns, resumeVersions] = await Promise.all([
     prisma.resumeBaseline.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.careerJdTest.findMany({ orderBy: { updatedAt: "desc" } }),
+    prisma.careerProject.findMany({ orderBy: { updatedAt: "desc" } }),
+    prisma.careerSkill.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.resumeTailorRun.findMany({ orderBy: { updatedAt: "desc" } }),
+    prisma.careerResumeVersion.findMany({ orderBy: { updatedAt: "desc" } }),
   ]);
   return {
     baselines: baselines.map(toResumeBaselineView),
     jdTests: jdTests.map(toCareerJdTestView),
+    projects: projects.map(toCareerProjectView),
+    skills: skills.map(toCareerSkillView),
     tailorRuns: tailorRuns.map(toResumeTailorRunView),
+    resumeVersions: resumeVersions.map(toCareerResumeVersionView),
     vaultConfigured: Boolean(process.env.CAREER_VAULT_PATH?.trim()),
   };
 }
@@ -173,7 +182,7 @@ export async function seedPlaceholderJdTests() {
   return created;
 }
 
-export async function runResumeTailorTests(input: { baselineId?: string; jdTestIds: string[] }) {
+export async function runResumeTailorTests(input: { baselineId?: string; jdTestIds: string[]; projectIds?: string[] }) {
   await ensureResumeTailorSchema();
   const baseline = input.baselineId
     ? await prisma.resumeBaseline.findUnique({ where: { id: input.baselineId } })
@@ -181,7 +190,10 @@ export async function runResumeTailorTests(input: { baselineId?: string; jdTestI
   if (!baseline) throw new Error("请先导入 baseline Markdown 简历。");
 
   const [projects, skills, jdTests] = await Promise.all([
-    prisma.careerProject.findMany({ orderBy: { updatedAt: "desc" } }),
+    prisma.careerProject.findMany({
+      where: input.projectIds?.length ? { id: { in: input.projectIds } } : undefined,
+      orderBy: { updatedAt: "desc" },
+    }),
     prisma.careerSkill.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.careerJdTest.findMany({ where: { id: { in: input.jdTestIds } } }),
   ]);
@@ -216,6 +228,69 @@ export async function runResumeTailorTests(input: { baselineId?: string; jdTestI
     runs.push(toResumeTailorRunView(created));
   }
   return runs;
+}
+
+export async function createCareerResumeVersion(input: ResumeVersionCreateInput) {
+  await ensureResumeTailorSchema();
+  const [run, projects] = await Promise.all([
+    prisma.resumeTailorRun.findUnique({ where: { id: input.tailorRunId } }),
+    prisma.careerProject.findMany({ orderBy: { updatedAt: "desc" } }),
+  ]);
+  if (!run) throw new Error("Resume tailor run not found");
+  const baseline = await prisma.resumeBaseline.findUnique({ where: { id: run.baselineId } });
+  if (!baseline) throw new Error("Baseline resume not found");
+
+  const runView = toResumeTailorRunView(run);
+  const baselineView = toResumeBaselineView(baseline);
+  const projectViews = projects.map(toCareerProjectView);
+  const diffSummary = buildResumeDiff(baselineView, runView);
+  const evidenceSummary = buildEvidenceSummary(runView, projectViews);
+  const checklist = buildExportChecklist({
+    baselineId: runView.baselineId,
+    jdTestId: runView.jdTestId,
+    finalResumeMarkdown: runView.finalResumeMarkdown,
+    diffSummary,
+    evidenceSummary,
+    riskNotes: runView.riskNotes,
+  });
+  const versionName = input.versionName || (await nextVersionName(runView.jdAnalysis.company, runView.jdAnalysis.role));
+  const created = await prisma.careerResumeVersion.create({
+    data: {
+      baselineId: runView.baselineId,
+      jdTestId: runView.jdTestId,
+      tailorRunId: runView.id,
+      company: runView.jdAnalysis.company,
+      role: runView.jdAnalysis.role,
+      versionName,
+      status: "draft",
+      finalResumeMarkdown: runView.finalResumeMarkdown,
+      diffSummary: diffSummary as unknown as Prisma.InputJsonObject,
+      evidenceSummary: evidenceSummary as unknown as Prisma.InputJsonArray,
+      riskNotes: runView.riskNotes,
+    },
+  });
+  return { version: toCareerResumeVersionView(created), checklist };
+}
+
+export async function updateCareerResumeVersionStatus(id: string, status: "draft" | "approved" | "exported" | "archived") {
+  await ensureResumeTailorSchema();
+  const existing = await prisma.careerResumeVersion.findUnique({ where: { id } });
+  if (!existing) throw new Error("Resume version not found");
+  const view = toCareerResumeVersionView(existing);
+  if (status === "approved") {
+    assertChecklistPassed(
+      buildExportChecklist({
+        baselineId: view.baselineId,
+        jdTestId: view.jdTestId,
+        finalResumeMarkdown: view.finalResumeMarkdown,
+        diffSummary: view.diffSummary,
+        evidenceSummary: view.evidenceSummary,
+        riskNotes: view.riskNotes,
+      }),
+    );
+  }
+  const updated = await prisma.careerResumeVersion.update({ where: { id }, data: { status } });
+  return toCareerResumeVersionView(updated);
 }
 
 export async function ensureResumeTailorSchema() {
@@ -262,6 +337,23 @@ export async function ensureResumeTailorSchema() {
       "jdTestId" TEXT NOT NULL,
       CONSTRAINT "ResumeTailorRun_baselineId_fkey" FOREIGN KEY ("baselineId") REFERENCES "ResumeBaseline" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
       CONSTRAINT "ResumeTailorRun_jdTestId_fkey" FOREIGN KEY ("jdTestId") REFERENCES "CareerJdTest" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS "CareerResumeVersion" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "baselineId" TEXT NOT NULL,
+      "jdTestId" TEXT NOT NULL,
+      "tailorRunId" TEXT NOT NULL,
+      "company" TEXT NOT NULL,
+      "role" TEXT NOT NULL,
+      "versionName" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'draft',
+      "finalResumeMarkdown" TEXT NOT NULL,
+      "diffSummary" JSONB NOT NULL,
+      "evidenceSummary" JSONB NOT NULL,
+      "riskNotes" JSONB NOT NULL,
+      "exportPath" TEXT NOT NULL DEFAULT '',
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
   ];
   for (const statement of statements) await prisma.$executeRawUnsafe(statement);
@@ -312,6 +404,38 @@ function toResumeTailorRunView(run: ResumeTailorRun): ResumeTailorRunView {
     finalResumeMarkdown: run.finalResumeMarkdown,
     comparisonReport: toComparisonReport(run.comparisonReport),
     updatedAt: run.updatedAt.toISOString(),
+  };
+}
+
+function toCareerResumeVersionView(version: CareerResumeVersion): CareerResumeVersionView {
+  const diffSummary = toDiffSummary(version.diffSummary);
+  const evidenceSummary = toEvidenceSummary(version.evidenceSummary);
+  const riskNotes = toStringArray(version.riskNotes);
+  return {
+    id: version.id,
+    baselineId: version.baselineId,
+    jdTestId: version.jdTestId,
+    tailorRunId: version.tailorRunId,
+    company: version.company,
+    role: version.role,
+    versionName: version.versionName,
+    status: isResumeVersionStatus(version.status) ? version.status : "draft",
+    finalResumeMarkdown: version.finalResumeMarkdown,
+    diffSummary,
+    evidenceSummary,
+    riskNotes,
+    exportPath: version.exportPath,
+    checklist: buildExportChecklist({
+      baselineId: version.baselineId,
+      jdTestId: version.jdTestId,
+      finalResumeMarkdown: version.finalResumeMarkdown,
+      diffSummary,
+      evidenceSummary,
+      riskNotes,
+      status: version.status,
+      requireApproved: version.status === "approved" || version.status === "exported",
+    }),
+    updatedAt: version.updatedAt.toISOString(),
   };
 }
 
@@ -388,6 +512,55 @@ function toComparisonReport(value: unknown): ResumeComparisonReport {
     riskWarnings: toStringArray(record.riskWarnings),
     nextActions: toStringArray(record.nextActions),
   };
+}
+
+function toDiffSummary(value: unknown) {
+  const record = isRecord(value) ? value : {};
+  return {
+    summary: toStringArray(record.summary),
+    skills: toStringArray(record.skills),
+    projectBullets: toStringArray(record.projectBullets),
+    workExperience: toStringArray(record.workExperience),
+    education: toStringArray(record.education),
+    addedKeywords: toStringArray(record.addedKeywords),
+    removedContent: toStringArray(record.removedContent),
+    rewrittenContent: toStringArray(record.rewrittenContent),
+    riskContent: toStringArray(record.riskContent),
+    unsupportedContent: toStringArray(record.unsupportedContent),
+  };
+}
+
+function toEvidenceSummary(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecord).map((item) => ({
+    section: typeof item.section === "string" ? item.section : "",
+    content: typeof item.content === "string" ? item.content : "",
+    evidenceSource: isEvidenceSource(item.evidenceSource) ? item.evidenceSource : "unknown",
+    sourceLabel: typeof item.sourceLabel === "string" ? item.sourceLabel : "",
+    valid: item.valid === true,
+    blockingReason: typeof item.blockingReason === "string" ? item.blockingReason : "",
+  }));
+}
+
+async function nextVersionName(company: string, role: string) {
+  const count = await prisma.careerResumeVersion.count({ where: { company, role } });
+  return `v${count + 1}`;
+}
+
+function isResumeVersionStatus(value: string): value is "draft" | "approved" | "exported" | "archived" {
+  return value === "draft" || value === "approved" || value === "exported" || value === "archived";
+}
+
+function isEvidenceSource(value: unknown): value is ResumeEvidenceItem["evidenceSource"] {
+  return (
+    value === "wiki_project" ||
+    value === "wiki_workflow" ||
+    value === "wiki_changelog" ||
+    value === "baseline_resume" ||
+    value === "user_input" ||
+    value === "missing_evidence" ||
+    value === "unknown"
+  );
 }
 
 function mergeStatus(existing: string, incoming: string) {

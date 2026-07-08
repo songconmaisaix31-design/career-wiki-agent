@@ -78,10 +78,25 @@ export const jdTestInputSchema = z.object({
 export const tailorRunInputSchema = z.object({
   baselineId: z.string().trim().min(1).optional(),
   jdTestIds: z.array(z.string().trim().min(1)).min(1),
+  projectIds: z.array(z.string().trim().min(1)).optional(),
 });
 
 export const tailorExportInputSchema = z.object({
   runIds: z.array(z.string().trim().min(1)).min(1),
+});
+
+export const resumeVersionCreateInputSchema = z.object({
+  tailorRunId: z.string().trim().min(1),
+  versionName: z.string().trim().default(""),
+});
+
+export const resumeVersionUpdateInputSchema = z.object({
+  id: z.string().trim().min(1),
+  status: z.enum(["draft", "approved", "exported", "archived"]),
+});
+
+export const resumeVersionExportInputSchema = z.object({
+  versionId: z.string().trim().min(1),
 });
 
 export type CareerProfileInput = z.infer<typeof careerProfileInputSchema>;
@@ -90,3 +105,4 @@ export type CareerSkillInput = z.infer<typeof careerSkillInputSchema>;
 export type CareerJdInput = z.infer<typeof careerJdInputSchema>;
 export type ResumeBaselineInput = z.infer<typeof resumeBaselineInputSchema>;
 export type CareerJdTestInput = z.infer<typeof jdTestInputSchema>;
+export type ResumeVersionCreateInput = z.infer<typeof resumeVersionCreateInputSchema>;

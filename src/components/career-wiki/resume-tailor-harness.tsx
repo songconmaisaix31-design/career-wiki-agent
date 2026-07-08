@@ -5,6 +5,8 @@ import { useMemo, useState, useTransition } from "react";
 import { ArrowLeft, Download, FileText, GitMerge, ListChecks, Play, Upload } from "lucide-react";
 
 import type {
+  CareerProjectView,
+  CareerResumeVersionView,
   CareerJdTestView,
   ResumeBaselineView,
   ResumeTailorHarnessData,
@@ -13,7 +15,7 @@ import type {
 } from "@/lib/career-wiki/types";
 import { cn } from "@/lib/utils";
 
-export type ResumeTailorHarnessSection = "wiki-import" | "resume-baseline" | "resume-tests" | "resume-tailor";
+export type ResumeTailorHarnessSection = "wiki-import" | "resume-baseline" | "resume-tests" | "resume-tailor" | "resume-versions";
 
 type JdTestDraft = {
   company: string;
@@ -28,6 +30,7 @@ const navItems: Array<{ section: ResumeTailorHarnessSection; label: string; icon
   { section: "resume-baseline", label: "基准简历", icon: FileText },
   { section: "resume-tests", label: "JD 测试集", icon: ListChecks },
   { section: "resume-tailor", label: "简历测试", icon: Play },
+  { section: "resume-versions", label: "简历版本", icon: Download },
 ];
 
 const emptyJdDraft: JdTestDraft = {
@@ -50,8 +53,10 @@ export function ResumeTailorHarness({
   const [baselineMarkdown, setBaselineMarkdown] = useState("");
   const [jdDraft, setJdDraft] = useState<JdTestDraft>(emptyJdDraft);
   const [selectedBaselineId, setSelectedBaselineId] = useState(initialData.baselines[0]?.id ?? "");
-  const [selectedJdIds, setSelectedJdIds] = useState<string[]>(initialData.jdTests.slice(0, 3).map((test) => test.id));
-  const [selectedRunIds, setSelectedRunIds] = useState<string[]>(initialData.tailorRuns.slice(0, 3).map((run) => run.id));
+  const [selectedJdIds, setSelectedJdIds] = useState<string[]>(initialData.jdTests.slice(0, 1).map((test) => test.id));
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>(initialData.projects.slice(0, 4).map((project) => project.id));
+  const [selectedRunIds, setSelectedRunIds] = useState<string[]>(initialData.tailorRuns.slice(0, 1).map((run) => run.id));
+  const [selectedVersionId, setSelectedVersionId] = useState(initialData.resumeVersions[0]?.id ?? "");
   const [status, setStatus] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -59,6 +64,7 @@ export function ResumeTailorHarness({
     () => data.tailorRuns.filter((run) => selectedRunIds.includes(run.id)),
     [data.tailorRuns, selectedRunIds],
   );
+  const selectedVersion = data.resumeVersions.find((version) => version.id === selectedVersionId) ?? data.resumeVersions[0];
 
   async function refresh() {
     const next = await requestJson<ResumeTailorHarnessData>("/api/career-wiki/resume-tests");
@@ -145,7 +151,7 @@ export function ResumeTailorHarness({
       try {
         const result = await requestJson<{ runs: ResumeTailorRunView[] }>(
           "/api/career-wiki/resume-tests/run",
-          { baselineId: selectedBaselineId || undefined, jdTestIds: selectedJdIds },
+          { baselineId: selectedBaselineId || undefined, jdTestIds: selectedJdIds, projectIds: selectedProjectIds },
           "POST",
         );
         await refresh();
@@ -157,14 +163,46 @@ export function ResumeTailorHarness({
     });
   }
 
-  function exportRuns() {
+  function saveDraftVersion() {
+    const runId = selectedRunIds[0];
+    if (!runId) {
+      setStatus("请先选择一个 draft run。");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ version: CareerResumeVersionView }>("/api/career-wiki/resume-versions", { tailorRunId: runId }, "POST");
+        await refresh();
+        setSelectedVersionId(result.version.id);
+        setStatus(`已保存 draft version：${result.version.versionName}`);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function updateVersionStatus(id: string, nextStatus: CareerResumeVersionView["status"]) {
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ version: CareerResumeVersionView }>("/api/career-wiki/resume-versions", { id, status: nextStatus }, "PATCH");
+        await refresh();
+        setSelectedVersionId(result.version.id);
+        setStatus(`版本状态已更新为 ${result.version.status}。`);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function exportVersion(id: string) {
     startTransition(async () => {
       try {
         const result = await requestJson<{ configured: boolean; message: string; files: string[] }>(
-          "/api/career-wiki/resume-tailor/export",
-          { runIds: selectedRunIds },
+          "/api/career-wiki/resume-versions/export",
+          { versionId: id },
           "POST",
         );
+        await refresh();
         setStatus(result.configured ? `${result.message} ${result.files.slice(0, 2).join("；")}` : result.message);
       } catch (error) {
         setStatus(formatError(error));
@@ -261,16 +299,33 @@ export function ResumeTailorHarness({
             <TailorRunsPanel
               baselines={data.baselines}
               tests={data.jdTests}
-              runs={data.tailorRuns}
+              projects={data.projects}
+              versions={data.resumeVersions}
               selectedBaselineId={selectedBaselineId}
               setSelectedBaselineId={setSelectedBaselineId}
               selectedJdIds={selectedJdIds}
               setSelectedJdIds={setSelectedJdIds}
+              selectedProjectIds={selectedProjectIds}
+              setSelectedProjectIds={setSelectedProjectIds}
               selectedRunIds={selectedRunIds}
               setSelectedRunIds={setSelectedRunIds}
               selectedRuns={selectedRuns}
+              selectedVersion={selectedVersion}
               onRun={runTailorTests}
-              onExport={exportRuns}
+              onSaveDraft={saveDraftVersion}
+              onApprove={(id) => updateVersionStatus(id, "approved")}
+              onExport={exportVersion}
+              isPending={isPending}
+            />
+          )}
+          {initialSection === "resume-versions" && (
+            <ResumeVersionsPanel
+              versions={data.resumeVersions}
+              selectedVersionId={selectedVersionId}
+              setSelectedVersionId={setSelectedVersionId}
+              onApprove={(id) => updateVersionStatus(id, "approved")}
+              onArchive={(id) => updateVersionStatus(id, "archived")}
+              onExport={exportVersion}
               isPending={isPending}
             />
           )}
@@ -388,67 +443,118 @@ function JdTestsPanel({
 function TailorRunsPanel({
   baselines,
   tests,
-  runs,
+  projects,
+  versions,
   selectedBaselineId,
   setSelectedBaselineId,
   selectedJdIds,
   setSelectedJdIds,
+  selectedProjectIds,
+  setSelectedProjectIds,
   selectedRunIds,
   setSelectedRunIds,
   selectedRuns,
+  selectedVersion,
   onRun,
+  onSaveDraft,
+  onApprove,
   onExport,
   isPending,
 }: {
   baselines: ResumeBaselineView[];
   tests: CareerJdTestView[];
-  runs: ResumeTailorRunView[];
+  projects: CareerProjectView[];
+  versions: CareerResumeVersionView[];
   selectedBaselineId: string;
   setSelectedBaselineId: (id: string) => void;
   selectedJdIds: string[];
   setSelectedJdIds: (ids: string[]) => void;
+  selectedProjectIds: string[];
+  setSelectedProjectIds: (ids: string[]) => void;
   selectedRunIds: string[];
   setSelectedRunIds: (ids: string[]) => void;
   selectedRuns: ResumeTailorRunView[];
+  selectedVersion?: CareerResumeVersionView;
   onRun: () => void;
-  onExport: () => void;
+  onSaveDraft: () => void;
+  onApprove: (id: string) => void;
+  onExport: (id: string) => void;
   isPending: boolean;
 }) {
+  const latestRun = selectedRuns[0];
   return (
     <section className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-lg border border-line bg-surface p-4">
+          <h2 className="text-base font-semibold">Step 1 · 选择 baseline resume</h2>
+          <select
+            value={selectedBaselineId}
+            onChange={(event) => setSelectedBaselineId(event.target.value)}
+            className="mt-3 h-10 w-full rounded-md border border-line bg-background px-3 text-sm"
+          >
+            <option value="">使用最近导入版本</option>
+            {baselines.map((baseline) => (
+              <option key={baseline.id} value={baseline.id}>
+                {baseline.name} · {baseline.source}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Checklist
+          title="Step 2 · 选择 JD test"
+          items={tests}
+          selectedIds={selectedJdIds}
+          setSelectedIds={(ids) => setSelectedJdIds(ids.slice(-1))}
+          labelOf={(test) => `${test.company} · ${test.role}`}
+        />
+      </div>
+
+      <Checklist
+        title="Step 3 · 选择要使用的项目素材"
+        items={projects}
+        selectedIds={selectedProjectIds}
+        setSelectedIds={setSelectedProjectIds}
+        labelOf={(project) => `${project.name} · ${project.status}`}
+      />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <PreviewList
+          title="Step 4 · 推荐项目预览"
+          items={projects.filter((project) => selectedProjectIds.includes(project.id)).map((project) => `${project.name} · ${project.status}`)}
+        />
+        <PreviewList
+          title="推荐技能预览"
+          items={latestRun ? latestRun.targetedSkills : ["生成 draft 后显示匹配技能"]}
+        />
+      </div>
+
       <div className="rounded-lg border border-line bg-surface p-4">
-        <label className="text-sm font-medium">Baseline</label>
-        <select
-          value={selectedBaselineId}
-          onChange={(event) => setSelectedBaselineId(event.target.value)}
-          className="mt-2 h-10 w-full rounded-md border border-line bg-background px-3 text-sm"
-        >
-          <option value="">使用最近导入版本</option>
-          {baselines.map((baseline) => (
-            <option key={baseline.id} value={baseline.id}>
-              {baseline.name} · {baseline.source}
-            </option>
-          ))}
-        </select>
+        <h2 className="text-base font-semibold">Step 5 · 生成定制简历草稿</h2>
         <div className="mt-3 flex flex-wrap gap-2">
-          <ActionButton onClick={onRun} disabled={isPending || selectedJdIds.length === 0} icon={Play} label="运行测试" />
-          <ActionButton onClick={onExport} disabled={isPending || selectedRunIds.length === 0} icon={Download} label="导出选中结果" />
+          <ActionButton onClick={onRun} disabled={isPending || selectedJdIds.length === 0 || selectedProjectIds.length === 0} icon={Play} label="生成 draft" />
+          <ActionButton onClick={onSaveDraft} disabled={isPending || selectedRunIds.length === 0} icon={FileText} label="保存为 draft version" variant="secondary" />
         </div>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Checklist title="选择 JD" items={tests} selectedIds={selectedJdIds} setSelectedIds={setSelectedJdIds} labelOf={(test) => `${test.company} · ${test.role}`} />
-        <Checklist title="选择导出结果" items={runs} selectedIds={selectedRunIds} setSelectedIds={setSelectedRunIds} labelOf={(run) => `${run.jdAnalysis.company} · ${run.jdAnalysis.role}`} />
-      </div>
+
       <div className="grid gap-4">
         {selectedRuns.map((run) => (
           <article key={run.id} className="rounded-lg border border-line bg-surface p-4">
             <h2 className="text-base font-semibold">
-              {run.jdAnalysis.company} · {run.jdAnalysis.role}
+              Step 6 · Diff 和风险提示：{run.jdAnalysis.company} · {run.jdAnalysis.role}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Baseline {run.comparisonReport.baselineScore} → Tailored {run.comparisonReport.tailoredScore}
             </p>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div className="mt-3 flex flex-wrap gap-2">
+              <ActionButton
+                onClick={() => setSelectedRunIds([run.id])}
+                disabled={isPending}
+                icon={ListChecks}
+                label={selectedRunIds.includes(run.id) ? "当前 draft" : "选择 draft"}
+                variant="secondary"
+              />
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
               <ListBlock title="匹配项目" items={run.selectedProjects} />
               <ListBlock title="风险提示" items={run.riskNotes} />
               <ListBlock title="缺失证据" items={run.missingEvidence} />
@@ -457,6 +563,91 @@ function TailorRunsPanel({
           </article>
         ))}
       </div>
+
+      <div className="rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-base font-semibold">Step 7 · 用户确认后保存为正式版本</h2>
+        {selectedVersion ? (
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <ListBlock title={`${selectedVersion.versionName} · ${selectedVersion.status}`} items={[`${selectedVersion.company} · ${selectedVersion.role}`]} />
+            <ListBlock
+              title="导出前检查清单"
+              items={selectedVersion.checklist.map((item) => `${item.passed ? "PASS" : "BLOCK"} · ${item.label}${item.reason ? `：${item.reason}` : ""}`)}
+            />
+            <ListBlock title="Diff" items={selectedVersion.diffSummary.projectBullets.slice(0, 6)} />
+            <ListBlock title="Evidence validation" items={selectedVersion.evidenceSummary.map((item) => `${item.valid ? "PASS" : "BLOCK"} · ${item.section} · ${item.evidenceSource}`)} />
+            <div className="flex flex-wrap gap-2 lg:col-span-2">
+              <ActionButton onClick={() => onApprove(selectedVersion.id)} disabled={isPending || selectedVersion.status !== "draft"} icon={ListChecks} label="确认为 approved" />
+              <ActionButton
+                onClick={() => onExport(selectedVersion.id)}
+                disabled={isPending || (selectedVersion.status !== "approved" && selectedVersion.status !== "exported")}
+                icon={Download}
+                label="Step 8 · 导出到 Obsidian"
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-muted-foreground">保存 draft version 后显示审批和导出检查。</p>
+        )}
+      </div>
+
+      <PreviewList title="历史版本" items={versions.slice(0, 8).map((version) => `${version.versionName} · ${version.status} · ${version.company} · ${version.role}`)} />
+    </section>
+  );
+}
+
+function ResumeVersionsPanel({
+  versions,
+  selectedVersionId,
+  setSelectedVersionId,
+  onApprove,
+  onArchive,
+  onExport,
+  isPending,
+}: {
+  versions: CareerResumeVersionView[];
+  selectedVersionId: string;
+  setSelectedVersionId: (id: string) => void;
+  onApprove: (id: string) => void;
+  onArchive: (id: string) => void;
+  onExport: (id: string) => void;
+  isPending: boolean;
+}) {
+  const selected = versions.find((version) => version.id === selectedVersionId) ?? versions[0];
+  return (
+    <section className="grid gap-4 lg:grid-cols-[360px_1fr]">
+      <Checklist
+        title="简历版本列表"
+        items={versions}
+        selectedIds={selected ? [selected.id] : []}
+        setSelectedIds={(ids) => setSelectedVersionId(ids.at(-1) ?? "")}
+        labelOf={(version) => `${version.versionName} · ${version.status} · ${version.company} · ${version.role}`}
+      />
+      {selected ? (
+        <article className="rounded-lg border border-line bg-surface p-4">
+          <h2 className="text-base font-semibold">
+            {selected.versionName} · {selected.company} · {selected.role}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">Status: {selected.status}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <ActionButton onClick={() => onApprove(selected.id)} disabled={isPending || selected.status !== "draft"} icon={ListChecks} label="标记 approved" />
+            <ActionButton onClick={() => onArchive(selected.id)} disabled={isPending || selected.status === "archived"} icon={FileText} label="归档" variant="secondary" />
+            <ActionButton
+              onClick={() => onExport(selected.id)}
+              disabled={isPending || (selected.status !== "approved" && selected.status !== "exported")}
+              icon={Download}
+              label="导出 final resume"
+            />
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <ListBlock title="导出前检查清单" items={selected.checklist.map((item) => `${item.passed ? "PASS" : "BLOCK"} · ${item.label}${item.reason ? `：${item.reason}` : ""}`)} />
+            <ListBlock title="风险提示" items={selected.riskNotes} />
+            <ListBlock title="Diff · Project Bullets" items={selected.diffSummary.projectBullets} />
+            <ListBlock title="Evidence" items={selected.evidenceSummary.map((item) => `${item.valid ? "PASS" : "BLOCK"} · ${item.content}`)} />
+          </div>
+        </article>
+      ) : (
+        <PreviewList title="版本详情" items={[]} />
+      )}
     </section>
   );
 }
