@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import type { CareerJdTest, CareerResumeVersion, Prisma, ResumeBaseline, ResumeTailorRun } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
+import { logCareerAudit } from "./audit/audit-log";
 import { buildWikiImportPreview, mergeStringList } from "./wiki-importer";
 import { getEvidenceItems } from "./evidence";
 import { assertChecklistPassed, buildEvidenceSummary, buildExportChecklist, buildResumeDiff } from "./resume-version";
@@ -305,7 +306,16 @@ export async function updateCareerResumeVersionStatus(id: string, status: "draft
     );
   }
   const updated = await prisma.careerResumeVersion.update({ where: { id }, data: { status } });
-  return toCareerResumeVersionView(updated);
+  const updatedView = toCareerResumeVersionView(updated);
+  await logCareerAudit({
+    action: "resume_version.status",
+    entityType: "career_resume_version",
+    entityId: id,
+    summary: `Changed resume version status: ${view.status} -> ${status}`,
+    before: view,
+    after: updatedView,
+  });
+  return updatedView;
 }
 
 export async function ensureResumeTailorSchema() {

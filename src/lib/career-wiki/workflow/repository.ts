@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
+import { logCareerAudit } from "../audit/audit-log";
 import { ensureCareerWikiSchema } from "../repository";
 import { canTransitionWorkflow } from "./state-machine";
 import { evaluateWorkflowGuard } from "./guards";
@@ -91,6 +92,15 @@ export async function transitionWorkflowRun(input: CareerWorkflowTransitionInput
     input.workflowRunId,
   );
   await insertWorkflowEvent(input.workflowRunId, run.currentState, input.toState, "transition", input.reason || "", guardResult);
+  await logCareerAudit({
+    action: "workflow.transition",
+    entityType: "career_workflow_run",
+    entityId: input.workflowRunId,
+    summary: `Workflow transition: ${run.currentState} -> ${input.toState}`,
+    before: run,
+    after: { currentState: input.toState, status: nextStatus },
+    metadata: { reason: input.reason || "", guardResult },
+  });
   return getWorkflowRun(input.workflowRunId);
 }
 

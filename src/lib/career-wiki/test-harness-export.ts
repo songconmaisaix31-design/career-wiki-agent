@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { prisma } from "@/lib/db";
+import { logCareerAudit } from "./audit/audit-log";
 import { createCareerExportLog } from "./repository";
 import { sanitizeWindowsFilename } from "./rules";
 import { assertChecklistPassed, buildExportChecklist, versionNumberFromName } from "./resume-version";
@@ -110,6 +111,14 @@ export async function exportApprovedResumeVersion(versionId: string) {
   ];
 
   await prisma.careerResumeVersion.update({ where: { id: view.id }, data: { status: "exported", exportPath: files[0] } });
+  await logCareerAudit({
+    action: "resume_version.export",
+    entityType: "career_resume_version",
+    entityId: view.id,
+    summary: `Exported approved final resume for ${view.company} - ${view.role}`,
+    after: { files },
+    metadata: { versionName: view.versionName },
+  });
   return { configured: true, message: `已导出 approved final resume 和 ${files.length - 1} 个审核报告。`, files };
 }
 

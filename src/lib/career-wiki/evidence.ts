@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
+import { logCareerAudit } from "./audit/audit-log";
 import { createCareerExportLog, ensureCareerWikiSchema } from "./repository";
 import { sanitizeWindowsFilename } from "./rules";
 import type { EvidenceExportInput, EvidenceInput, EvidenceUpdateInput } from "./schemas";
@@ -97,12 +98,31 @@ export async function saveEvidenceItem(input: EvidenceInput | EvidenceUpdateInpu
     );
   }
   const rows = await prisma.$queryRawUnsafe<EvidenceRow[]>(`SELECT * FROM "CareerEvidenceItem" WHERE "id" = ? LIMIT 1`, id);
-  return toEvidenceView(rows[0]);
+  const evidenceItem = toEvidenceView(rows[0]);
+  await logCareerAudit({
+    action: existing[0] ? "evidence.update" : "evidence.create",
+    entityType: "career_evidence_item",
+    entityId: id,
+    summary: `${existing[0] ? "Updated" : "Created"} evidence: ${evidenceItem.title}`,
+    before: existing[0] ? toEvidenceView(existing[0]) : null,
+    after: evidenceItem,
+    metadata: { targetType: evidenceItem.targetType, jdTestId: evidenceItem.jdTestId, status: evidenceItem.status },
+  });
+  return evidenceItem;
 }
 
 export async function deleteEvidenceItem(id: string) {
   await ensureEvidenceSchema();
+  const existing = await prisma.$queryRawUnsafe<EvidenceRow[]>(`SELECT * FROM "CareerEvidenceItem" WHERE "id" = ? LIMIT 1`, id);
   await prisma.$executeRawUnsafe(`DELETE FROM "CareerEvidenceItem" WHERE "id" = ?`, id);
+  await logCareerAudit({
+    action: "evidence.delete",
+    entityType: "career_evidence_item",
+    entityId: id,
+    summary: existing[0] ? `Deleted evidence: ${existing[0].title}` : "Deleted evidence",
+    before: existing[0] ? toEvidenceView(existing[0]) : null,
+    after: null,
+  });
   return { deleted: true };
 }
 

@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
+import { logCareerAudit } from "../audit/audit-log";
 import { getEvidenceItems } from "../evidence";
 import { createCareerExportLog, ensureCareerWikiSchema } from "../repository";
 import { sanitizeWindowsFilename } from "../rules";
@@ -35,6 +36,13 @@ export async function runProjectFitClassifier(input: ProjectFitRunInput) {
   }
 
   const exportedFile = input.exportReport ? await exportProjectFitReport(jdTest, targetDirection, saved) : undefined;
+  await logCareerAudit({
+    action: "project_fit.run",
+    entityType: "career_jd_test",
+    entityId: jdTest.id,
+    summary: `Ran Project Fit for ${jdTest.company} - ${jdTest.role}`,
+    after: { targetDirection, resultCount: saved.length, exportedFile: exportedFile || "" },
+  });
   return { jdTest, targetDirection, results: saved, exportedFile };
 }
 
@@ -59,6 +67,15 @@ export async function overrideProjectFitResult(input: ProjectFitOverrideInput) {
     input.overrideReason,
     input.id,
   );
+  await logCareerAudit({
+    action: "project_fit.override",
+    entityType: "career_project_fit_result",
+    entityId: input.id,
+    summary: `Applied Project Fit override: ${input.overrideType}`,
+    before: rowToProjectFitResult(row),
+    after: result,
+    metadata: { reason: input.overrideReason },
+  });
   return { result: { ...result, id: input.id, updated_at: new Date().toISOString() } };
 }
 
