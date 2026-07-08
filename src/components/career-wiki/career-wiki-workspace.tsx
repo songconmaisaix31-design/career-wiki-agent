@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useMemo, useState, useTransition } from "react";
-import { ArrowLeft, BookOpen, CheckCircle2, Download, Edit3, FolderKanban, GraduationCap, ListChecks, Sparkles } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle2, Download, Edit3, FolderKanban, GraduationCap, ListChecks, Sparkles, Upload } from "lucide-react";
 
 import type {
   CareerJdAnalysisView,
@@ -205,6 +205,13 @@ export function CareerWikiWorkspace({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Link
+                href="/career-wiki/jd-import"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-line bg-surface px-4 text-sm font-medium hover:bg-surface-low"
+              >
+                <Upload className="size-4" />
+                JD 导入
+              </Link>
               <Link
                 href="/career-wiki/resume-tailor"
                 className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-line bg-surface px-4 text-sm font-medium hover:bg-surface-low"

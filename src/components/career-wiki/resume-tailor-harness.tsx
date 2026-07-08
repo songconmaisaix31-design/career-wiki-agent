@@ -13,9 +13,10 @@ import type {
   ResumeTailorRunView,
   WikiImportPreview,
 } from "@/lib/career-wiki/types";
+import type { ParsedDocument } from "@/lib/career-wiki/document-ingest/types";
 import { cn } from "@/lib/utils";
 
-export type ResumeTailorHarnessSection = "wiki-import" | "resume-baseline" | "resume-tests" | "resume-tailor" | "resume-versions";
+export type ResumeTailorHarnessSection = "wiki-import" | "jd-import" | "resume-baseline" | "resume-tests" | "resume-tailor" | "resume-versions";
 
 type JdTestDraft = {
   company: string;
@@ -27,6 +28,7 @@ type JdTestDraft = {
 
 const navItems: Array<{ section: ResumeTailorHarnessSection; label: string; icon: typeof FileText }> = [
   { section: "wiki-import", label: "Wiki 导入", icon: GitMerge },
+  { section: "jd-import", label: "JD 导入", icon: Upload },
   { section: "resume-baseline", label: "基准简历", icon: FileText },
   { section: "resume-tests", label: "JD 测试集", icon: ListChecks },
   { section: "resume-tailor", label: "简历测试", icon: Play },
@@ -50,6 +52,10 @@ export function ResumeTailorHarness({
 }) {
   const [data, setData] = useState(initialData);
   const [preview, setPreview] = useState<WikiImportPreview | null>(null);
+  const [parsedDocument, setParsedDocument] = useState<ParsedDocument | null>(null);
+  const [ingestPurpose, setIngestPurpose] = useState<"jd" | "resume_baseline">("jd");
+  const [pastedDocument, setPastedDocument] = useState("");
+  const [importMeta, setImportMeta] = useState({ company: "", role: "", source: "document-ingest", targetDirection: "AI Application Engineer" });
   const [baselineMarkdown, setBaselineMarkdown] = useState("");
   const [jdDraft, setJdDraft] = useState<JdTestDraft>(emptyJdDraft);
   const [selectedBaselineId, setSelectedBaselineId] = useState(initialData.baselines[0]?.id ?? "");
@@ -57,6 +63,7 @@ export function ResumeTailorHarness({
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>(initialData.projects.slice(0, 4).map((project) => project.id));
   const [selectedRunIds, setSelectedRunIds] = useState<string[]>(initialData.tailorRuns.slice(0, 1).map((run) => run.id));
   const [selectedVersionId, setSelectedVersionId] = useState(initialData.resumeVersions[0]?.id ?? "");
+  const [renderPreview, setRenderPreview] = useState<{ format: "markdown" | "html"; content: string } | null>(null);
   const [status, setStatus] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -95,6 +102,72 @@ export function ResumeTailorHarness({
         setPreview(result.preview);
         await refresh();
         setStatus(result.applied ? `已导入 ${result.projectCount} 个项目、${result.skillCount} 个技能。` : "Dry-run 已完成，未写入数据库。");
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function ingestPastedDocument() {
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ parsed: ParsedDocument }>(
+          "/api/career-wiki/document-ingest",
+          { text: pastedDocument, fileName: ingestPurpose === "jd" ? "pasted-jd.md" : "pasted-resume.md", purpose: ingestPurpose },
+          "POST",
+        );
+        setParsedDocument(result.parsed);
+        setStatus(`解析完成：${result.parsed.title}`);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function ingestUploadedDocument(file: File | null) {
+    if (!file) return;
+    startTransition(async () => {
+      try {
+        const formData = new FormData();
+        formData.set("file", file);
+        formData.set("purpose", ingestPurpose);
+        const response = await fetch("/api/career-wiki/document-ingest", { method: "POST", body: formData });
+        const payload = (await response.json().catch(() => ({}))) as { parsed?: ParsedDocument; message?: string };
+        if (!response.ok || !payload.parsed) throw new Error(payload.message || "解析失败");
+        setParsedDocument(payload.parsed);
+        setStatus(`解析完成：${payload.parsed.title}`);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function confirmParsedDocument() {
+    if (!parsedDocument) {
+      setStatus("请先解析文件或粘贴文本。");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        await requestJson(
+          "/api/career-wiki/jd-import/confirm",
+          {
+            purpose: ingestPurpose,
+            markdown: parsedDocument.markdown,
+            title: parsedDocument.title,
+            parser: parsedDocument.parser,
+            source: importMeta.source,
+            company: importMeta.company,
+            role: importMeta.role,
+            targetDirection: importMeta.targetDirection,
+            baselineName: parsedDocument.title,
+          },
+          "POST",
+        );
+        const next = await refresh();
+        setParsedDocument(null);
+        setPastedDocument("");
+        setStatus(ingestPurpose === "jd" ? `已保存为 JD test，当前共有 ${next.jdTests.length} 个。` : `已保存为 baseline resume，当前共有 ${next.baselines.length} 个。`);
       } catch (error) {
         setStatus(formatError(error));
       }
@@ -210,6 +283,38 @@ export function ResumeTailorHarness({
     });
   }
 
+  function renderVersion(id: string, format: "markdown" | "html") {
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ format: "markdown" | "html"; content: string }>(
+          "/api/career-wiki/resume-versions/render",
+          { versionId: id, format },
+          "POST",
+        );
+        setRenderPreview(result);
+        setStatus(`${format.toUpperCase()} 预览已生成。`);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function exportVersionFormat(id: string, format: "markdown" | "json" | "html" | "docx" | "pdf") {
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ configured: boolean; message: string; files: string[] }>(
+          "/api/career-wiki/resume-versions/export-format",
+          { versionId: id, format },
+          "POST",
+        );
+        await refresh();
+        setStatus(result.configured ? `${result.message} ${result.files.slice(0, 2).join("；")}` : result.message);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6 lg:px-8">
@@ -274,6 +379,21 @@ export function ResumeTailorHarness({
           {initialSection === "wiki-import" && (
             <WikiImportPanel preview={preview} isPending={isPending} onPreview={loadPreview} onApply={applyImport} />
           )}
+          {initialSection === "jd-import" && (
+            <DocumentIngestPanel
+              purpose={ingestPurpose}
+              setPurpose={setIngestPurpose}
+              pastedText={pastedDocument}
+              setPastedText={setPastedDocument}
+              parsed={parsedDocument}
+              importMeta={importMeta}
+              setImportMeta={setImportMeta}
+              onUpload={ingestUploadedDocument}
+              onParseText={ingestPastedDocument}
+              onConfirm={confirmParsedDocument}
+              isPending={isPending}
+            />
+          )}
           {initialSection === "resume-baseline" && (
             <BaselinePanel
               baselines={data.baselines}
@@ -326,6 +446,9 @@ export function ResumeTailorHarness({
               onApprove={(id) => updateVersionStatus(id, "approved")}
               onArchive={(id) => updateVersionStatus(id, "archived")}
               onExport={exportVersion}
+              onRender={renderVersion}
+              onExportFormat={exportVersionFormat}
+              renderPreview={renderPreview}
               isPending={isPending}
             />
           )}
@@ -358,6 +481,94 @@ function WikiImportPanel({
         <PreviewList title="技能预览" items={(preview?.skills ?? []).map((skill) => `${skill.name} · ${skill.category} · ${skill.sourceFile}`)} />
       </div>
       {preview?.warnings.length ? <PreviewList title="导入警告" items={preview.warnings} /> : null}
+    </section>
+  );
+}
+
+function DocumentIngestPanel({
+  purpose,
+  setPurpose,
+  pastedText,
+  setPastedText,
+  parsed,
+  importMeta,
+  setImportMeta,
+  onUpload,
+  onParseText,
+  onConfirm,
+  isPending,
+}: {
+  purpose: "jd" | "resume_baseline";
+  setPurpose: (purpose: "jd" | "resume_baseline") => void;
+  pastedText: string;
+  setPastedText: (value: string) => void;
+  parsed: ParsedDocument | null;
+  importMeta: { company: string; role: string; source: string; targetDirection: string };
+  setImportMeta: (value: { company: string; role: string; source: string; targetDirection: string }) => void;
+  onUpload: (file: File | null) => void;
+  onParseText: () => void;
+  onConfirm: () => void;
+  isPending: boolean;
+}) {
+  return (
+    <section className="grid gap-4 lg:grid-cols-[1fr_420px]">
+      <div className="space-y-4 rounded-lg border border-line bg-surface p-4">
+        <div>
+          <h2 className="text-base font-semibold">多格式 JD / 简历导入</h2>
+          <p className="mt-1 text-sm text-muted-foreground">支持 MD、TXT、HTML；PDF/DOCX 需要本机 MarkItDown CLI，可缺省 fallback。</p>
+        </div>
+        <label className="block text-sm font-medium">
+          用途
+          <select
+            value={purpose}
+            onChange={(event) => setPurpose(event.target.value === "resume_baseline" ? "resume_baseline" : "jd")}
+            className="mt-1 h-10 w-full rounded-md border border-line bg-background px-3 text-sm"
+          >
+            <option value="jd">JD test</option>
+            <option value="resume_baseline">Resume baseline</option>
+          </select>
+        </label>
+        <label className="block text-sm font-medium">
+          上传文件
+          <input
+            type="file"
+            accept=".md,.txt,.html,.pdf,.docx"
+            onChange={(event) => onUpload(event.target.files?.[0] ?? null)}
+            className="mt-1 block w-full rounded-md border border-line bg-background px-3 py-2 text-sm"
+          />
+        </label>
+        <Textarea label="或粘贴文本" value={pastedText} onChange={setPastedText} rows={10} />
+        <ActionButton onClick={onParseText} disabled={isPending || !pastedText.trim()} icon={FileText} label="解析粘贴文本" variant="secondary" />
+        {purpose === "jd" ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input label="公司" value={importMeta.company} onChange={(company) => setImportMeta({ ...importMeta, company })} />
+            <Input label="岗位" value={importMeta.role} onChange={(role) => setImportMeta({ ...importMeta, role })} />
+            <Input label="来源" value={importMeta.source} onChange={(source) => setImportMeta({ ...importMeta, source })} />
+            <Input
+              label="目标方向"
+              value={importMeta.targetDirection}
+              onChange={(targetDirection) => setImportMeta({ ...importMeta, targetDirection })}
+            />
+          </div>
+        ) : null}
+        <ActionButton onClick={onConfirm} disabled={isPending || !parsed} icon={Upload} label={purpose === "jd" ? "保存为 JD test" : "保存为 baseline resume"} />
+      </div>
+      <div className="rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-base font-semibold">解析预览</h2>
+        {parsed ? (
+          <div className="mt-3 space-y-3">
+            <div className="text-sm text-muted-foreground">
+              {parsed.title} · {parsed.parser} · {Math.round(parsed.provenance.size_bytes / 1024)} KB
+            </div>
+            {parsed.warnings.length ? <ListBlock title="提示" items={parsed.warnings} /> : null}
+            <pre className="max-h-[520px] overflow-auto rounded-md border border-line bg-background p-3 text-xs whitespace-pre-wrap">
+              {parsed.markdown.slice(0, 6000)}
+            </pre>
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-muted-foreground">上传文件或粘贴文本后，这里显示 normalized Markdown。</p>
+        )}
+      </div>
     </section>
   );
 }
@@ -602,6 +813,9 @@ function ResumeVersionsPanel({
   onApprove,
   onArchive,
   onExport,
+  onRender,
+  onExportFormat,
+  renderPreview,
   isPending,
 }: {
   versions: CareerResumeVersionView[];
@@ -610,9 +824,13 @@ function ResumeVersionsPanel({
   onApprove: (id: string) => void;
   onArchive: (id: string) => void;
   onExport: (id: string) => void;
+  onRender: (id: string, format: "markdown" | "html") => void;
+  onExportFormat: (id: string, format: "markdown" | "json" | "html" | "docx" | "pdf") => void;
+  renderPreview: { format: "markdown" | "html"; content: string } | null;
   isPending: boolean;
 }) {
   const selected = versions.find((version) => version.id === selectedVersionId) ?? versions[0];
+  const canExport = selected ? selected.status === "approved" || selected.status === "exported" : false;
   return (
     <section className="grid gap-4 lg:grid-cols-[360px_1fr]">
       <Checklist
@@ -633,10 +851,26 @@ function ResumeVersionsPanel({
             <ActionButton onClick={() => onArchive(selected.id)} disabled={isPending || selected.status === "archived"} icon={FileText} label="归档" variant="secondary" />
             <ActionButton
               onClick={() => onExport(selected.id)}
-              disabled={isPending || (selected.status !== "approved" && selected.status !== "exported")}
+              disabled={isPending || !canExport}
               icon={Download}
-              label="导出 final resume"
+              label="导出 Markdown + 审核报告"
             />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <ActionButton onClick={() => onRender(selected.id, "markdown")} disabled={isPending} icon={FileText} label="Markdown preview" variant="secondary" />
+            <ActionButton onClick={() => onRender(selected.id, "html")} disabled={isPending} icon={FileText} label="HTML preview" variant="secondary" />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(["markdown", "json", "html", "docx", "pdf"] as const).map((format) => (
+              <ActionButton
+                key={format}
+                onClick={() => onExportFormat(selected.id, format)}
+                disabled={isPending || !canExport}
+                icon={Download}
+                label={`Export ${format.toUpperCase()}`}
+                variant="secondary"
+              />
+            ))}
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <ListBlock title="导出前检查清单" items={selected.checklist.map((item) => `${item.passed ? "PASS" : "BLOCK"} · ${item.label}${item.reason ? `：${item.reason}` : ""}`)} />
@@ -644,6 +878,18 @@ function ResumeVersionsPanel({
             <ListBlock title="Diff · Project Bullets" items={selected.diffSummary.projectBullets} />
             <ListBlock title="Evidence" items={selected.evidenceSummary.map((item) => `${item.valid ? "PASS" : "BLOCK"} · ${item.content}`)} />
           </div>
+          {renderPreview ? (
+            <div className="mt-4 rounded-md border border-line bg-background p-3">
+              <h3 className="text-sm font-medium">{renderPreview.format.toUpperCase()} preview</h3>
+              {renderPreview.format === "html" ? (
+                <iframe title="HTML resume preview" srcDoc={renderPreview.content} className="mt-2 h-[640px] w-full rounded-md border border-line bg-white" />
+              ) : (
+                <pre className="mt-2 max-h-[640px] overflow-auto whitespace-pre-wrap text-xs">{renderPreview.content}</pre>
+              )}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-muted-foreground">点击 preview 生成 Markdown 或 HTML 预览；draft 可以预览，但不能导出 final。</p>
+          )}
         </article>
       ) : (
         <PreviewList title="版本详情" items={[]} />

@@ -272,6 +272,13 @@ export async function createCareerResumeVersion(input: ResumeVersionCreateInput)
   return { version: toCareerResumeVersionView(created), checklist };
 }
 
+export async function getCareerResumeVersionById(id: string) {
+  await ensureResumeTailorSchema();
+  const version = await prisma.careerResumeVersion.findUnique({ where: { id } });
+  if (!version) throw new Error("Resume version not found");
+  return toCareerResumeVersionView(version);
+}
+
 export async function updateCareerResumeVersionStatus(id: string, status: "draft" | "approved" | "exported" | "archived") {
   await ensureResumeTailorSchema();
   const existing = await prisma.careerResumeVersion.findUnique({ where: { id } });

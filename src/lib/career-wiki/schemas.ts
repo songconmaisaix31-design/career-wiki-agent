@@ -99,6 +99,28 @@ export const resumeVersionExportInputSchema = z.object({
   versionId: z.string().trim().min(1),
 });
 
+export const documentIngestConfirmInputSchema = z.object({
+  purpose: z.enum(["jd", "resume_baseline"]),
+  markdown: z.string().trim().min(20, "解析内容太短，无法保存"),
+  title: z.string().trim().default("Imported Document"),
+  parser: z.string().trim().default("unknown"),
+  source: z.string().trim().default("document-ingest"),
+  company: z.string().trim().default("Imported JD"),
+  role: z.string().trim().default("Imported Role"),
+  targetDirection: z.string().trim().default("Imported JD"),
+  baselineName: z.string().trim().default("imported_baseline_resume"),
+});
+
+export const resumeVersionRenderInputSchema = z.object({
+  versionId: z.string().trim().min(1),
+  format: z.enum(["markdown", "json", "html"]).default("html"),
+});
+
+export const resumeVersionExportFormatInputSchema = z.object({
+  versionId: z.string().trim().min(1),
+  format: z.enum(["markdown", "json", "html", "docx", "pdf"]),
+});
+
 export type CareerProfileInput = z.infer<typeof careerProfileInputSchema>;
 export type CareerProjectInput = z.infer<typeof careerProjectInputSchema>;
 export type CareerSkillInput = z.infer<typeof careerSkillInputSchema>;
@@ -106,3 +128,6 @@ export type CareerJdInput = z.infer<typeof careerJdInputSchema>;
 export type ResumeBaselineInput = z.infer<typeof resumeBaselineInputSchema>;
 export type CareerJdTestInput = z.infer<typeof jdTestInputSchema>;
 export type ResumeVersionCreateInput = z.infer<typeof resumeVersionCreateInputSchema>;
+export type DocumentIngestConfirmInput = z.infer<typeof documentIngestConfirmInputSchema>;
+export type ResumeVersionRenderInput = z.infer<typeof resumeVersionRenderInputSchema>;
+export type ResumeVersionExportFormatInput = z.infer<typeof resumeVersionExportFormatInputSchema>;
