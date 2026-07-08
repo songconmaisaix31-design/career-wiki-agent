@@ -15,3 +15,6 @@
 - 2026-07-08: Career Wiki MVP is implemented as independent `/career-wiki/*` routes plus `/api/career-wiki/*` endpoints, with a dashboard entry link from the original app.
 - 2026-07-08: Career Wiki runtime creates its own tables through `ensureCareerWikiSchema()` so local SQLite startup works even before a manual migration run.
 - 2026-07-08: In this environment, Prisma engine download from the default source hit `ECONNRESET`; one-time `npx prisma generate` succeeded with `PRISMA_ENGINES_MIRROR=https://registry.npmmirror.com/-/binary/prisma`.
+- 2026-07-08: Demo validation data was backed up to `D:\AI-Workspace\Archive\career-wiki-agent-demo-backup-20260708-152654`, then removed from `prisma\dev.db` Career Wiki tables and `D:\AI-Workspace\CareerVault`.
+- 2026-07-08: `D:\AI-Workspace\CareerVault` was initialized for real usage with profile, project bank, skill matrix, JD analysis, learning plan, resume version, interview prep, and applications templates.
+- 2026-07-08: Next suggested phase is Resume Tailor MVP, using Career Wiki materials to produce resume version suggestions while keeping rule-based fallback.
