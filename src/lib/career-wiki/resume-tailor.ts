@@ -7,6 +7,8 @@ import type {
   ResumeComparisonReport,
   ResumeTailorRunView,
 } from "./types";
+import { filterProjectsForResume } from "./project-fit/classifier";
+import type { ProjectFitResult } from "./project-fit/types";
 import { analyzeCareerJd, generateSevenDayTasks } from "./rules";
 
 export function parseBaselineMarkdown(markdown: string, name = "baseline_resume_2025", source = "manual"): Omit<ResumeBaselineView, "id" | "updatedAt"> {
@@ -36,11 +38,13 @@ export function createTailorRunDraft({
   jdTest,
   projects,
   skills,
+  projectFitResults = [],
 }: {
   baseline: ResumeBaselineView;
   jdTest: CareerJdTestView;
   projects: CareerProjectView[];
   skills: CareerSkillView[];
+  projectFitResults?: ProjectFitResult[];
 }): Omit<ResumeTailorRunView, "id" | "baselineId" | "jdTestId" | "updatedAt"> {
   const jdAnalysis = {
     id: "preview",
@@ -56,10 +60,10 @@ export function createTailorRunDraft({
       skills,
     ),
   };
-  const selectedProjects = selectProjects(jdAnalysis, projects);
+  const selectedProjects = selectProjects(jdAnalysis, projects, projectFitResults);
   const targetedSkills = selectSkills(jdAnalysis, skills, baseline.skills);
   const missingEvidence = findMissingEvidence(jdAnalysis, targetedSkills, selectedProjects, baseline);
-  const riskNotes = buildRiskNotes(selectedProjects);
+  const riskNotes = buildRiskNotes(selectedProjects, projectFitResults);
   const rewrittenProjectBullets = selectedProjects.flatMap((project) => rewriteProjectBullets(project, jdAnalysis));
   const rewrittenWorkExperience = rewriteWorkExperience(baseline, jdAnalysis);
   const targetedSummary = buildTargetedSummary(baseline, jdTest, targetedSkills, selectedProjects);
@@ -92,7 +96,9 @@ export function buildLearningTasksForJd(jdAnalysis: CareerJdAnalysisView, skills
   return generateSevenDayTasks(jdAnalysis, skills);
 }
 
-function selectProjects(analysis: CareerJdAnalysisView, projects: CareerProjectView[]) {
+function selectProjects(analysis: CareerJdAnalysisView, projects: CareerProjectView[], projectFitResults: ProjectFitResult[] = []) {
+  const fitSelected = filterProjectsForResume(projects, projectFitResults).slice(0, 4);
+  if (fitSelected.length) return fitSelected;
   const terms = [...analysis.requiredSkills, ...analysis.responsibilities].join(" ").toLowerCase();
   return projects
     .filter((project) => !isLowSignalProject(project.name))
@@ -133,10 +139,16 @@ function findMissingEvidence(
   return analysis.requiredSkills.filter((skill) => !hasSkillEvidence(skill, known));
 }
 
-function buildRiskNotes(projects: CareerProjectView[]) {
-  return projects
+function buildRiskNotes(projects: CareerProjectView[], projectFitResults: ProjectFitResult[] = []) {
+  const fitWarnings = projectFitResults
+    .filter((result) => projects.some((project) => project.id === result.project_id))
+    .flatMap((result) => result.risk_warnings);
+  return [
+    ...projects
     .filter((project) => /wip|prototype|mvp|semi-finished|draft/i.test(project.status))
-    .map((project) => `${project.name} 当前状态为 ${project.status}，简历中只能描述已验证范围，不能写成 production-ready。`);
+      .map((project) => `${project.name} 当前状态为 ${project.status}，简历中只能描述已验证范围，不能写成 production-ready。`),
+    ...fitWarnings,
+  ];
 }
 
 function rewriteProjectBullets(project: CareerProjectView, analysis: CareerJdAnalysisView) {

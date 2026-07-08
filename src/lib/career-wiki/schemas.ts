@@ -126,6 +126,18 @@ export const resumeVersionExportFormatInputSchema = z.object({
   include_internal_reports: z.boolean().default(false),
 });
 
+export const projectFitRunInputSchema = z.object({
+  jdTestId: z.string().trim().min(1),
+  targetDirection: z.string().trim().optional(),
+  exportReport: z.boolean().default(false),
+});
+
+export const projectFitOverrideInputSchema = z.object({
+  id: z.string().trim().min(1),
+  overrideType: z.enum(["force_include", "force_exclude", "needs_review"]),
+  overrideReason: z.string().trim().min(5, "Override reason is required"),
+});
+
 export type CareerProfileInput = z.infer<typeof careerProfileInputSchema>;
 export type CareerProjectInput = z.infer<typeof careerProjectInputSchema>;
 export type CareerSkillInput = z.infer<typeof careerSkillInputSchema>;
@@ -136,3 +148,5 @@ export type ResumeVersionCreateInput = z.infer<typeof resumeVersionCreateInputSc
 export type DocumentIngestConfirmInput = z.infer<typeof documentIngestConfirmInputSchema>;
 export type ResumeVersionRenderInput = z.infer<typeof resumeVersionRenderInputSchema>;
 export type ResumeVersionExportFormatInput = z.infer<typeof resumeVersionExportFormatInputSchema>;
+export type ProjectFitRunInput = z.infer<typeof projectFitRunInputSchema>;
+export type ProjectFitOverrideInput = z.infer<typeof projectFitOverrideInputSchema>;

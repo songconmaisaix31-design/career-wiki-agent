@@ -14,10 +14,11 @@ import type {
   WikiImportPreview,
 } from "@/lib/career-wiki/types";
 import type { ParsedDocument } from "@/lib/career-wiki/document-ingest/types";
+import type { ProjectFitOverrideType, ProjectFitResult } from "@/lib/career-wiki/project-fit/types";
 import type { ResumeTemplateId } from "@/lib/career-wiki/resume-templates/templates";
 import { cn } from "@/lib/utils";
 
-export type ResumeTailorHarnessSection = "wiki-import" | "jd-import" | "resume-baseline" | "resume-tests" | "resume-tailor" | "resume-versions";
+export type ResumeTailorHarnessSection = "wiki-import" | "jd-import" | "resume-baseline" | "resume-tests" | "project-fit" | "resume-tailor" | "resume-versions";
 
 type JdTestDraft = {
   company: string;
@@ -32,6 +33,7 @@ const navItems: Array<{ section: ResumeTailorHarnessSection; label: string; icon
   { section: "jd-import", label: "JD 导入", icon: Upload },
   { section: "resume-baseline", label: "基准简历", icon: FileText },
   { section: "resume-tests", label: "JD 测试集", icon: ListChecks },
+  { section: "project-fit", label: "项目匹配", icon: GitMerge },
   { section: "resume-tailor", label: "简历测试", icon: Play },
   { section: "resume-versions", label: "简历版本", icon: Download },
 ];
@@ -65,6 +67,9 @@ export function ResumeTailorHarness({
   const [selectedRunIds, setSelectedRunIds] = useState<string[]>(initialData.tailorRuns.slice(0, 1).map((run) => run.id));
   const [selectedVersionId, setSelectedVersionId] = useState(initialData.resumeVersions[0]?.id ?? "");
   const [selectedTemplate, setSelectedTemplate] = useState<ResumeTemplateId>("modern");
+  const [selectedProjectFitJdId, setSelectedProjectFitJdId] = useState(initialData.jdTests[0]?.id ?? "");
+  const [projectFitResults, setProjectFitResults] = useState<ProjectFitResult[]>([]);
+  const [projectFitOverrides, setProjectFitOverrides] = useState<Record<string, { overrideType: ProjectFitOverrideType; overrideReason: string }>>({});
   const [renderPreview, setRenderPreview] = useState<{ format: "markdown" | "html"; content: string; template: ResumeTemplateId } | null>(null);
   const [status, setStatus] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -232,6 +237,63 @@ export function ResumeTailorHarness({
         await refresh();
         setSelectedRunIds(result.runs.map((run) => run.id));
         setStatus(`已生成 ${result.runs.length} 份定制简历和对比报告。`);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function loadProjectFitResults(jdTestId = selectedProjectFitJdId) {
+    if (!jdTestId) {
+      setStatus("请先选择一个 JD test。");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ results: ProjectFitResult[] }>(`/api/career-wiki/project-fit?jdTestId=${encodeURIComponent(jdTestId)}`);
+        setProjectFitResults(result.results);
+        setStatus(`已加载 ${result.results.length} 条项目匹配结果。`);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function runProjectFit(exportReport = false) {
+    const jdTest = data.jdTests.find((test) => test.id === selectedProjectFitJdId);
+    if (!jdTest) {
+      setStatus("请先选择一个 JD test。");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ results: ProjectFitResult[]; exportedFile?: string }>(
+          "/api/career-wiki/project-fit/run",
+          { jdTestId: jdTest.id, targetDirection: jdTest.targetDirection, exportReport },
+          "POST",
+        );
+        setProjectFitResults(result.results);
+        setStatus(exportReport && result.exportedFile ? `项目匹配报告已导出：${result.exportedFile}` : `已完成 ${result.results.length} 个项目匹配分类。`);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function overrideProjectFit(resultId: string) {
+    const draft = projectFitOverrides[resultId];
+    if (!draft?.overrideReason.trim()) {
+      setStatus("Manual override 必须填写原因。");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        await requestJson(
+          "/api/career-wiki/project-fit/override",
+          { id: resultId, overrideType: draft.overrideType, overrideReason: draft.overrideReason },
+          "PATCH",
+        );
+        loadProjectFitResults();
       } catch (error) {
         setStatus(formatError(error));
       }
@@ -414,6 +476,23 @@ export function ResumeTailorHarness({
               setSelectedIds={setSelectedJdIds}
               onCreate={createJdTest}
               onSeed={seedPlaceholders}
+              isPending={isPending}
+            />
+          )}
+          {initialSection === "project-fit" && (
+            <ProjectFitPanel
+              tests={data.jdTests}
+              results={projectFitResults}
+              selectedJdId={selectedProjectFitJdId}
+              setSelectedJdId={(id) => {
+                setSelectedProjectFitJdId(id);
+                setProjectFitResults([]);
+              }}
+              overrides={projectFitOverrides}
+              setOverrides={setProjectFitOverrides}
+              onLoad={loadProjectFitResults}
+              onRun={runProjectFit}
+              onOverride={overrideProjectFit}
               isPending={isPending}
             />
           )}
@@ -651,6 +730,137 @@ function JdTestsPanel({
         setSelectedIds={setSelectedIds}
         labelOf={(test) => `${test.company} · ${test.role} · ${test.targetDirection}`}
       />
+    </section>
+  );
+}
+
+function ProjectFitPanel({
+  tests,
+  results,
+  selectedJdId,
+  setSelectedJdId,
+  overrides,
+  setOverrides,
+  onLoad,
+  onRun,
+  onOverride,
+  isPending,
+}: {
+  tests: CareerJdTestView[];
+  results: ProjectFitResult[];
+  selectedJdId: string;
+  setSelectedJdId: (id: string) => void;
+  overrides: Record<string, { overrideType: ProjectFitOverrideType; overrideReason: string }>;
+  setOverrides: (drafts: Record<string, { overrideType: ProjectFitOverrideType; overrideReason: string }>) => void;
+  onLoad: (jdTestId?: string) => void;
+  onRun: (exportReport?: boolean) => void;
+  onOverride: (resultId: string) => void;
+  isPending: boolean;
+}) {
+  const selected = tests.find((test) => test.id === selectedJdId);
+  const grouped = {
+    primary: results.filter((result) => result.recommended_resume_usage === "primary_project"),
+    supporting: results.filter((result) => result.recommended_resume_usage === "supporting_project"),
+    blocked: results.filter((result) => result.recommended_resume_usage === "do_not_use" || result.fit_level === "insufficient_evidence"),
+  };
+  return (
+    <section className="space-y-4">
+      <div className="rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-base font-semibold">Step 1 · 选择 JD test</h2>
+        <select
+          value={selectedJdId}
+          onChange={(event) => setSelectedJdId(event.target.value)}
+          className="mt-3 h-10 w-full rounded-md border border-line bg-background px-3 text-sm"
+        >
+          <option value="">请选择 JD</option>
+          {tests.map((test) => (
+            <option key={test.id} value={test.id}>
+              {test.company} · {test.role} · {test.targetDirection}
+            </option>
+          ))}
+        </select>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {selected ? `当前方向：${selected.targetDirection || selected.role}` : "运行分类前需要先保存 JD test。"}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <ActionButton onClick={() => onLoad(selectedJdId)} disabled={isPending || !selectedJdId} icon={ListChecks} label="加载已有结果" variant="secondary" />
+          <ActionButton onClick={() => onRun(false)} disabled={isPending || !selectedJdId} icon={Play} label="运行项目匹配" />
+          <ActionButton onClick={() => onRun(true)} disabled={isPending || !selectedJdId} icon={Download} label="运行并导出报告" variant="secondary" />
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <PreviewList title="Primary Project" items={grouped.primary.map((result) => `${result.project_name} · ${result.fit_score}`)} />
+        <PreviewList title="Supporting Project" items={grouped.supporting.map((result) => `${result.project_name} · ${result.fit_score}`)} />
+        <PreviewList title="Blocked / Insufficient" items={grouped.blocked.map((result) => `${result.project_name} · ${result.fit_level}`)} />
+      </div>
+
+      <div className="space-y-3">
+        {results.length ? (
+          results.map((result) => {
+            const draft = overrides[result.id ?? ""] ?? { overrideType: "needs_review" as ProjectFitOverrideType, overrideReason: "" };
+            return (
+              <article key={`${result.project_id}-${result.id ?? "preview"}`} className="rounded-lg border border-line bg-surface p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-semibold">
+                      {result.project_name} · {result.fit_level}
+                    </h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      usage: {result.recommended_resume_usage} · fit {result.fit_score} · keyword {result.keyword_score} · evidence {result.evidence_score} · domain {result.domain_score} · risk {result.risk_score}
+                    </p>
+                  </div>
+                  {result.override_type ? (
+                    <span className="rounded-md border border-line px-2 py-1 text-xs text-muted-foreground">
+                      override: {result.override_type}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <ListBlock title="Matched JD requirements" items={result.matched_jd_requirements} />
+                  <ListBlock title="Missing JD requirements" items={result.missing_jd_requirements} />
+                  <ListBlock title="Supporting evidence" items={result.supporting_evidence} />
+                  <ListBlock title="Risk warnings" items={result.risk_warnings} />
+                  <ListBlock title="Suggested bullets" items={result.suggested_bullets} />
+                  <ListBlock title="Exclusion reason" items={result.exclusion_reason ? [result.exclusion_reason] : []} />
+                </div>
+                {result.id ? (
+                  <div className="mt-4 grid gap-2 rounded-md border border-line bg-background p-3 md:grid-cols-[180px_1fr_auto]">
+                    <select
+                      value={draft.overrideType}
+                      onChange={(event) =>
+                        setOverrides({
+                          ...overrides,
+                          [result.id as string]: { ...draft, overrideType: event.target.value as ProjectFitOverrideType },
+                        })
+                      }
+                      className="h-10 rounded-md border border-line bg-surface px-3 text-sm"
+                    >
+                      <option value="needs_review">needs_review</option>
+                      <option value="force_include">force_include</option>
+                      <option value="force_exclude">force_exclude</option>
+                    </select>
+                    <input
+                      value={draft.overrideReason}
+                      onChange={(event) =>
+                        setOverrides({
+                          ...overrides,
+                          [result.id as string]: { ...draft, overrideReason: event.target.value },
+                        })
+                      }
+                      className="h-10 rounded-md border border-line bg-surface px-3 text-sm"
+                      placeholder="Override reason，必须填写"
+                    />
+                    <ActionButton onClick={() => onOverride(result.id as string)} disabled={isPending} icon={ListChecks} label="保存 override" variant="secondary" />
+                  </div>
+                ) : null}
+              </article>
+            );
+          })
+        ) : (
+          <PreviewList title="项目匹配结果" items={[]} />
+        )}
+      </div>
     </section>
   );
 }

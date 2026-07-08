@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { buildWikiImportPreview, mergeStringList } from "./wiki-importer";
 import { assertChecklistPassed, buildEvidenceSummary, buildExportChecklist, buildResumeDiff } from "./resume-version";
 import { createTailorRunDraft, parseBaselineMarkdown } from "./resume-tailor";
+import { getProjectFitResults } from "./project-fit/repository";
 import type { CareerJdTestInput, ResumeBaselineInput, ResumeVersionCreateInput } from "./schemas";
 import type {
   CareerResumeVersionView,
@@ -203,11 +204,13 @@ export async function runResumeTailorTests(input: { baselineId?: string; jdTestI
   const runs: ResumeTailorRunView[] = [];
 
   for (const jdTest of jdTests) {
+    const projectFitResults = await getProjectFitResults(jdTest.id);
     const draft = createTailorRunDraft({
       baseline: baselineView,
       jdTest: toCareerJdTestView(jdTest),
       projects: projectViews,
       skills: skillViews,
+      projectFitResults,
     });
     const created = await prisma.resumeTailorRun.create({
       data: {

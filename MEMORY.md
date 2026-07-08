@@ -28,3 +28,4 @@
 - 2026-07-08: Server-side PDF generation is intentionally a graceful HTML-print fallback until a dedicated renderer is selected; do not add browser automation or heavyweight rendering dependencies just for PDF without a separate decision.
 - 2026-07-08: Resume Template Preview MVP adds `modern`, `ats`, and `compact` HTML templates on top of `ResumeRenderSchema`; templates control layout only and must not bypass evidence filtering or include risk/evidence reports in final resume body.
 - 2026-07-08: Standalone resume preview lives at `/career-wiki/resume-versions/[id]/preview?template=...` and uses browser print/save-as-PDF instead of server-side PDF generation.
+- 2026-07-08: Project Fit Classifier is rule-based and sits before Resume Tailor project selection. It stores explainable keyword/evidence/domain/risk scores, excludes `do_not_use` and `insufficient_evidence` projects from full resume selection, and records manual overrides with reasons.
