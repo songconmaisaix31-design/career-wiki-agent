@@ -143,6 +143,7 @@ AI features stay disabled until the settings are saved and the connection test s
 - Career Wiki Agent extends this codebase as a local-first workflow for Career Profile, Project Bank, Skill Matrix, JD analysis, Resume Tailor, Project Fit, Evidence Editor, multi-template resume rendering, and Obsidian export.
 - The local line intentionally excludes automatic job application, recruiting platform crawling, login automation, HR messaging, cookie management, proxy pools, captcha bypass, and login-state automation.
 - Current production-quality work focuses on workflow state, audit logs, evidence quality review, operations checks, sensitive-content guards, and safer final resume export.
+- v0.4 frontend UX overhaul adds a unified Career Wiki App Shell, workflow-first navigation, redesigned Dashboard, Workflow, Evidence Review, Audit views, reusable Career Wiki UI states, and a frontend QA checklist.
 
 Local production-quality commands:
 

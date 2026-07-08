@@ -35,3 +35,4 @@
 - 2026-07-08: v0.3 production-quality consolidation adds workflow, audit, evidence review, dashboard, healthcheck, integrity, backup, and sensitive guards as runtime/local-first layers. Open high-severity evidence review items block resume approval.
 - 2026-07-08: `npm run career:integrity` may return `warn` with exit code 0 when real-use data is incomplete; only `fail` represents a blocking integrity problem.
 - 2026-07-08: Integrity now treats `exported` resume versions as satisfying the approved-version gate and excludes `JD Template` placeholder versions from the real-JD pass condition.
+- 2026-07-09: v0.4 frontend UX overhaul introduces a shared Career Wiki App Shell, grouped navigation, status strip, dashboard next-action hub, workflow board, evidence review queue, audit log viewer, and reusable UI state components while keeping backend evidence/workflow/export guards unchanged.
