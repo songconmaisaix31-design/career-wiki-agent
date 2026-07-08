@@ -29,3 +29,4 @@
 - 2026-07-08: Resume Template Preview MVP adds `modern`, `ats`, and `compact` HTML templates on top of `ResumeRenderSchema`; templates control layout only and must not bypass evidence filtering or include risk/evidence reports in final resume body.
 - 2026-07-08: Standalone resume preview lives at `/career-wiki/resume-versions/[id]/preview?template=...` and uses browser print/save-as-PDF instead of server-side PDF generation.
 - 2026-07-08: Project Fit Classifier is rule-based and sits before Resume Tailor project selection. It stores explainable keyword/evidence/domain/risk scores, excludes `do_not_use` and `insufficient_evidence` projects from full resume selection, and records manual overrides with reasons.
+- 2026-07-08: Resume Evidence Editor adds `CareerEvidenceItem` runtime storage. Only `verified` evidence can improve Project Fit or support Resume Tailor evidence validation; `draft` is visible but unscored, and `rejected` is ignored.

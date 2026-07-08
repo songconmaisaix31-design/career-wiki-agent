@@ -5,6 +5,10 @@ import { useMemo, useState, useTransition } from "react";
 import { ArrowLeft, Download, FileText, GitMerge, ListChecks, Play, Upload } from "lucide-react";
 
 import type {
+  CareerEvidenceItemView,
+  CareerEvidenceStatus,
+  CareerEvidenceTargetType,
+  CareerEvidenceType,
   CareerProjectView,
   CareerResumeVersionView,
   CareerJdTestView,
@@ -18,7 +22,7 @@ import type { ProjectFitOverrideType, ProjectFitResult } from "@/lib/career-wiki
 import type { ResumeTemplateId } from "@/lib/career-wiki/resume-templates/templates";
 import { cn } from "@/lib/utils";
 
-export type ResumeTailorHarnessSection = "wiki-import" | "jd-import" | "resume-baseline" | "resume-tests" | "project-fit" | "resume-tailor" | "resume-versions";
+export type ResumeTailorHarnessSection = "wiki-import" | "jd-import" | "resume-baseline" | "resume-tests" | "project-fit" | "evidence-editor" | "resume-tailor" | "resume-versions";
 
 type JdTestDraft = {
   company: string;
@@ -28,12 +32,27 @@ type JdTestDraft = {
   jdText: string;
 };
 
+type EvidenceDraft = {
+  id?: string;
+  targetType: CareerEvidenceTargetType;
+  targetId: string;
+  jdTestId: string;
+  evidenceType: CareerEvidenceType;
+  title: string;
+  content: string;
+  sourcePath: string;
+  sourceExcerpt: string;
+  confidence: number;
+  status: CareerEvidenceStatus;
+};
+
 const navItems: Array<{ section: ResumeTailorHarnessSection; label: string; icon: typeof FileText }> = [
   { section: "wiki-import", label: "Wiki 导入", icon: GitMerge },
   { section: "jd-import", label: "JD 导入", icon: Upload },
   { section: "resume-baseline", label: "基准简历", icon: FileText },
   { section: "resume-tests", label: "JD 测试集", icon: ListChecks },
   { section: "project-fit", label: "项目匹配", icon: GitMerge },
+  { section: "evidence-editor", label: "证据编辑", icon: FileText },
   { section: "resume-tailor", label: "简历测试", icon: Play },
   { section: "resume-versions", label: "简历版本", icon: Download },
 ];
@@ -44,6 +63,19 @@ const emptyJdDraft: JdTestDraft = {
   source: "manual",
   targetDirection: "AI Application Engineer",
   jdText: "",
+};
+
+const emptyEvidenceDraft: EvidenceDraft = {
+  targetType: "project",
+  targetId: "",
+  jdTestId: "",
+  evidenceType: "user_input",
+  title: "",
+  content: "",
+  sourcePath: "manual_input",
+  sourceExcerpt: "",
+  confidence: 70,
+  status: "draft",
 };
 
 export function ResumeTailorHarness({
@@ -70,6 +102,9 @@ export function ResumeTailorHarness({
   const [selectedProjectFitJdId, setSelectedProjectFitJdId] = useState(initialData.jdTests[0]?.id ?? "");
   const [projectFitResults, setProjectFitResults] = useState<ProjectFitResult[]>([]);
   const [projectFitOverrides, setProjectFitOverrides] = useState<Record<string, { overrideType: ProjectFitOverrideType; overrideReason: string }>>({});
+  const [evidenceItems, setEvidenceItems] = useState<CareerEvidenceItemView[]>(initialData.evidenceItems);
+  const [evidenceDraft, setEvidenceDraft] = useState<EvidenceDraft>({ ...emptyEvidenceDraft, targetId: initialData.projects[0]?.id ?? "", jdTestId: initialData.jdTests[0]?.id ?? "" });
+  const [evidenceFilter, setEvidenceFilter] = useState({ jdTestId: initialData.jdTests[0]?.id ?? "", targetType: "all", status: "all" });
   const [renderPreview, setRenderPreview] = useState<{ format: "markdown" | "html"; content: string; template: ResumeTemplateId } | null>(null);
   const [status, setStatus] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -83,6 +118,7 @@ export function ResumeTailorHarness({
   async function refresh() {
     const next = await requestJson<ResumeTailorHarnessData>("/api/career-wiki/resume-tests");
     setData(next);
+    setEvidenceItems(next.evidenceItems);
     return next;
   }
 
@@ -300,6 +336,66 @@ export function ResumeTailorHarness({
     });
   }
 
+  function loadEvidenceItems() {
+    startTransition(async () => {
+      try {
+        const params = new URLSearchParams();
+        if (evidenceFilter.jdTestId) params.set("jdTestId", evidenceFilter.jdTestId);
+        if (evidenceFilter.targetType !== "all") params.set("targetType", evidenceFilter.targetType);
+        if (evidenceFilter.status !== "all") params.set("status", evidenceFilter.status);
+        const result = await requestJson<{ evidenceItems: CareerEvidenceItemView[] }>(`/api/career-wiki/evidence?${params.toString()}`);
+        setEvidenceItems(result.evidenceItems);
+        setStatus(`已加载 ${result.evidenceItems.length} 条证据。`);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function saveEvidence() {
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ evidenceItem: CareerEvidenceItemView }>(
+          "/api/career-wiki/evidence",
+          evidenceDraft,
+          evidenceDraft.id ? "PATCH" : "POST",
+        );
+        await refresh();
+        setEvidenceDraft({ ...emptyEvidenceDraft, targetId: evidenceDraft.targetId, jdTestId: evidenceDraft.jdTestId });
+        setStatus(`证据已保存：${result.evidenceItem.title} · ${result.evidenceItem.status}`);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function deleteEvidence(id: string) {
+    startTransition(async () => {
+      try {
+        await requestJson("/api/career-wiki/evidence", { id }, "DELETE");
+        await refresh();
+        setStatus("证据已删除。");
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function exportEvidence() {
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ configured: boolean; message: string; files: string[] }>(
+          "/api/career-wiki/evidence/export",
+          { jdTestId: evidenceFilter.jdTestId },
+          "POST",
+        );
+        setStatus(result.configured ? result.message : "未配置 CAREER_VAULT_PATH，请先设置 CareerVault 路径。");
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
   function saveDraftVersion() {
     const runId = selectedRunIds[0];
     if (!runId) {
@@ -493,6 +589,25 @@ export function ResumeTailorHarness({
               onLoad={loadProjectFitResults}
               onRun={runProjectFit}
               onOverride={overrideProjectFit}
+              isPending={isPending}
+            />
+          )}
+          {initialSection === "evidence-editor" && (
+            <EvidenceEditorPanel
+              tests={data.jdTests}
+              projects={data.projects}
+              skills={data.skills}
+              evidenceItems={evidenceItems}
+              projectFitResults={projectFitResults}
+              draft={evidenceDraft}
+              setDraft={setEvidenceDraft}
+              filter={evidenceFilter}
+              setFilter={setEvidenceFilter}
+              onLoad={loadEvidenceItems}
+              onLoadProjectFit={() => loadProjectFitResults(evidenceFilter.jdTestId)}
+              onSave={saveEvidence}
+              onDelete={deleteEvidence}
+              onExport={exportEvidence}
               isPending={isPending}
             />
           )}
@@ -730,6 +845,220 @@ function JdTestsPanel({
         setSelectedIds={setSelectedIds}
         labelOf={(test) => `${test.company} · ${test.role} · ${test.targetDirection}`}
       />
+    </section>
+  );
+}
+
+function EvidenceEditorPanel({
+  tests,
+  projects,
+  skills,
+  evidenceItems,
+  projectFitResults,
+  draft,
+  setDraft,
+  filter,
+  setFilter,
+  onLoad,
+  onLoadProjectFit,
+  onSave,
+  onDelete,
+  onExport,
+  isPending,
+}: {
+  tests: CareerJdTestView[];
+  projects: CareerProjectView[];
+  skills: { id: string; name: string; category: string }[];
+  evidenceItems: CareerEvidenceItemView[];
+  projectFitResults: ProjectFitResult[];
+  draft: EvidenceDraft;
+  setDraft: (draft: EvidenceDraft) => void;
+  filter: { jdTestId: string; targetType: string; status: string };
+  setFilter: (filter: { jdTestId: string; targetType: string; status: string }) => void;
+  onLoad: () => void;
+  onLoadProjectFit: () => void;
+  onSave: () => void;
+  onDelete: (id: string) => void;
+  onExport: () => void;
+  isPending: boolean;
+}) {
+  const targetOptions = draft.targetType === "skill" ? skills.map((skill) => ({ id: skill.id, label: `${skill.name} · ${skill.category}` })) : projects.map((project) => ({ id: project.id, label: `${project.name} · ${project.status}` }));
+  const insufficientProjects = projectFitResults.filter((result) => result.fit_level === "insufficient_evidence");
+  return (
+    <section className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+        <div className="space-y-3 rounded-lg border border-line bg-surface p-4">
+          <h2 className="text-base font-semibold">补充证据</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="text-sm font-medium">
+              关联 JD
+              <select
+                value={draft.jdTestId}
+                onChange={(event) => setDraft({ ...draft, jdTestId: event.target.value })}
+                className="mt-1 h-10 w-full rounded-md border border-line bg-background px-3 text-sm"
+              >
+                <option value="">全局证据</option>
+                {tests.map((test) => (
+                  <option key={test.id} value={test.id}>
+                    {test.company} · {test.role}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-medium">
+              Target type
+              <select
+                value={draft.targetType}
+                onChange={(event) => setDraft({ ...draft, targetType: event.target.value as CareerEvidenceTargetType, targetId: "" })}
+                className="mt-1 h-10 w-full rounded-md border border-line bg-background px-3 text-sm"
+              >
+                <option value="project">project</option>
+                <option value="skill">skill</option>
+                <option value="bullet">bullet</option>
+                <option value="work_experience">work_experience</option>
+                <option value="education">education</option>
+              </select>
+            </label>
+            <label className="text-sm font-medium">
+              Target
+              <select
+                value={draft.targetId}
+                onChange={(event) => setDraft({ ...draft, targetId: event.target.value })}
+                className="mt-1 h-10 w-full rounded-md border border-line bg-background px-3 text-sm"
+              >
+                <option value="">请选择</option>
+                {targetOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-medium">
+              Evidence type
+              <select
+                value={draft.evidenceType}
+                onChange={(event) => setDraft({ ...draft, evidenceType: event.target.value as CareerEvidenceType })}
+                className="mt-1 h-10 w-full rounded-md border border-line bg-background px-3 text-sm"
+              >
+                <option value="user_input">user_input · 人工补充</option>
+                <option value="external_note">external_note · 外部笔记</option>
+                <option value="wiki_project">wiki_project</option>
+                <option value="wiki_workflow">wiki_workflow</option>
+                <option value="wiki_changelog">wiki_changelog</option>
+                <option value="baseline_resume">baseline_resume</option>
+              </select>
+            </label>
+            <label className="text-sm font-medium">
+              Status
+              <select
+                value={draft.status}
+                onChange={(event) => setDraft({ ...draft, status: event.target.value as CareerEvidenceStatus })}
+                className="mt-1 h-10 w-full rounded-md border border-line bg-background px-3 text-sm"
+              >
+                <option value="draft">draft</option>
+                <option value="verified">verified</option>
+                <option value="rejected">rejected</option>
+              </select>
+            </label>
+            <Input label="Confidence" value={String(draft.confidence)} onChange={(confidence) => setDraft({ ...draft, confidence: Number(confidence) || 0 })} />
+          </div>
+          <Input label="证据标题" value={draft.title} onChange={(title) => setDraft({ ...draft, title })} />
+          <Textarea label="证据内容" value={draft.content} onChange={(content) => setDraft({ ...draft, content })} rows={6} />
+          <Input label="来源文件 / 路径" value={draft.sourcePath} onChange={(sourcePath) => setDraft({ ...draft, sourcePath })} />
+          <Textarea label="来源摘录" value={draft.sourceExcerpt} onChange={(sourceExcerpt) => setDraft({ ...draft, sourceExcerpt })} rows={4} />
+          <div className="flex flex-wrap gap-2">
+            <ActionButton onClick={onSave} disabled={isPending || !draft.targetId || !draft.title || !draft.content} icon={Upload} label={draft.id ? "更新证据" : "保存证据"} />
+            <ActionButton onClick={() => setDraft({ ...emptyEvidenceDraft, targetId: projects[0]?.id ?? "", jdTestId: filter.jdTestId })} disabled={isPending} icon={FileText} label="新建空白" variant="secondary" />
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-lg border border-line bg-surface p-4">
+            <h2 className="text-base font-semibold">筛选</h2>
+            <label className="mt-3 block text-sm font-medium">
+              JD
+              <select
+                value={filter.jdTestId}
+                onChange={(event) => setFilter({ ...filter, jdTestId: event.target.value })}
+                className="mt-1 h-10 w-full rounded-md border border-line bg-background px-3 text-sm"
+              >
+                <option value="">全部 JD</option>
+                {tests.map((test) => (
+                  <option key={test.id} value={test.id}>
+                    {test.company} · {test.role}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              <label className="text-sm font-medium">
+                Target type
+                <select
+                  value={filter.targetType}
+                  onChange={(event) => setFilter({ ...filter, targetType: event.target.value })}
+                  className="mt-1 h-10 w-full rounded-md border border-line bg-background px-3 text-sm"
+                >
+                  <option value="all">all</option>
+                  <option value="project">project</option>
+                  <option value="skill">skill</option>
+                  <option value="bullet">bullet</option>
+                  <option value="work_experience">work_experience</option>
+                  <option value="education">education</option>
+                </select>
+              </label>
+              <label className="text-sm font-medium">
+                Status
+                <select
+                  value={filter.status}
+                  onChange={(event) => setFilter({ ...filter, status: event.target.value })}
+                  className="mt-1 h-10 w-full rounded-md border border-line bg-background px-3 text-sm"
+                >
+                  <option value="all">all</option>
+                  <option value="draft">draft</option>
+                  <option value="verified">verified</option>
+                  <option value="rejected">rejected</option>
+                </select>
+              </label>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <ActionButton onClick={onLoad} disabled={isPending} icon={ListChecks} label="加载证据" variant="secondary" />
+              <ActionButton onClick={onLoadProjectFit} disabled={isPending || !filter.jdTestId} icon={GitMerge} label="加载缺证据项目" variant="secondary" />
+              <ActionButton onClick={onExport} disabled={isPending} icon={Download} label="导出 Evidence Report" />
+            </div>
+          </div>
+          <PreviewList title="Insufficient Evidence Projects" items={insufficientProjects.map((result) => `${result.project_name} · evidence ${result.evidence_score} · ${result.exclusion_reason}`)} />
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        {evidenceItems.length ? (
+          evidenceItems.map((item) => (
+            <article key={item.id} className="rounded-lg border border-line bg-surface p-4">
+              <div className="flex flex-wrap justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold">
+                    {item.title} · {item.status}
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {item.targetType} / {item.targetId} · {item.evidenceType} · confidence {item.confidence}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <ActionButton onClick={() => setDraft({ ...item })} disabled={isPending} icon={FileText} label="编辑" variant="secondary" />
+                  <ActionButton onClick={() => onDelete(item.id)} disabled={isPending} icon={FileText} label="删除" variant="secondary" />
+                </div>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <ListBlock title="Evidence content" items={[item.content]} />
+                <ListBlock title="Source" items={[item.sourcePath || "manual_input", item.sourceExcerpt || "暂无摘录"]} />
+              </div>
+            </article>
+          ))
+        ) : (
+          <PreviewList title="证据列表" items={[]} />
+        )}
+      </div>
     </section>
   );
 }

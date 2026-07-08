@@ -1,4 +1,5 @@
 import type {
+  CareerEvidenceItemView,
   CareerProjectView,
   ResumeBaselineView,
   ResumeDiffSummary,
@@ -32,8 +33,9 @@ export function buildResumeDiff(baseline: ResumeBaselineView, run: ResumeTailorR
   };
 }
 
-export function buildEvidenceSummary(run: ResumeTailorRunView, projects: CareerProjectView[]): ResumeEvidenceItem[] {
+export function buildEvidenceSummary(run: ResumeTailorRunView, projects: CareerProjectView[], evidenceItems: CareerEvidenceItemView[] = []): ResumeEvidenceItem[] {
   const projectMap = new Map(projects.map((project) => [normalize(project.name), project]));
+  const verifiedEvidence = evidenceItems.filter((item) => item.status === "verified");
   const items: ResumeEvidenceItem[] = [];
 
   items.push({
@@ -58,15 +60,18 @@ export function buildEvidenceSummary(run: ResumeTailorRunView, projects: CareerP
 
   for (const bullet of run.rewrittenProjectBullets) {
     const project = findProjectForBullet(bullet, projectMap);
-    const evidenceSource = project ? inferProjectEvidenceSource(project) : "missing_evidence";
-    const valid = Boolean(project) && !hasUnsafeText(bullet) && !isEmptyBullet(bullet);
+    const manualEvidence = project ? findVerifiedEvidenceForProject(project, verifiedEvidence) : undefined;
+    const inferredSource = project ? inferProjectEvidenceSource(project) : "missing_evidence";
+    const evidenceSource = manualEvidence?.evidenceType ?? inferredSource;
+    const hasVerifiedEvidence = Boolean(manualEvidence) || evidenceSource !== "user_input";
+    const valid = Boolean(project) && hasVerifiedEvidence && !hasUnsafeText(bullet) && !isEmptyBullet(bullet);
     items.push({
       section: "project_bullets",
       content: bullet,
       evidenceSource,
-      sourceLabel: project ? project.interviewStory || `CareerProject:${project.name}` : "",
+      sourceLabel: manualEvidence ? `${manualEvidence.title} - ${manualEvidence.sourcePath || manualEvidence.sourceExcerpt}` : project ? project.interviewStory || `CareerProject:${project.name}` : "",
       valid,
-      blockingReason: valid ? "" : buildBulletBlockingReason(bullet, project?.name),
+      blockingReason: valid ? "" : buildBulletBlockingReason(bullet, project?.name, hasVerifiedEvidence),
     });
   }
 
@@ -185,8 +190,13 @@ function inferProjectEvidenceSource(project: CareerProjectView): ResumeEvidenceI
   return "user_input";
 }
 
-function buildBulletBlockingReason(bullet: string, projectName?: string) {
+function findVerifiedEvidenceForProject(project: CareerProjectView, evidenceItems: CareerEvidenceItemView[]) {
+  return evidenceItems.find((item) => item.targetId === project.id || item.targetId === project.name);
+}
+
+function buildBulletBlockingReason(bullet: string, projectName?: string, hasVerifiedEvidence = false) {
   if (!projectName) return "project bullet has no matching CareerProject evidence";
+  if (!hasVerifiedEvidence) return "project bullet needs verified evidence";
   if (hasUnsafeText(bullet)) return "project bullet contains unsafe or unsupported wording";
   if (isEmptyBullet(bullet)) return "project bullet is empty or asks for future evidence";
   return "";

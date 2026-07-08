@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildEvidenceSummary, buildExportChecklist, buildResumeDiff } from "./resume-version";
-import type { CareerProjectView, ResumeBaselineView, ResumeTailorRunView } from "./types";
+import type { CareerEvidenceItemView, CareerProjectView, ResumeBaselineView, ResumeTailorRunView } from "./types";
 
 const baseline: ResumeBaselineView = {
   id: "baseline-1",
@@ -120,5 +120,32 @@ describe("resume version validation", () => {
     const evidence = buildEvidenceSummary(draft, projects);
 
     expect(evidence.find((item) => item.section === "project_bullets")?.valid).toBe(false);
+  });
+
+  it("requires verified evidence for manual project bullets", () => {
+    const manualProject: CareerProjectView = { ...projects[0], interviewStory: "", resumeBullets: [] };
+    const draft = run();
+    const withoutEvidence = buildEvidenceSummary(draft, [manualProject]);
+    const withVerifiedEvidence = buildEvidenceSummary(draft, [manualProject], [
+      {
+        id: "evidence-1",
+        targetType: "project",
+        targetId: manualProject.id,
+        jdTestId: draft.jdTestId,
+        evidenceType: "user_input",
+        title: "Manual prototype validation",
+        content: "Verified local prototype validation notes for ReviewFlow AI.",
+        sourcePath: "manual_input",
+        sourceExcerpt: "local note",
+        confidence: 80,
+        status: "verified",
+        createdAt: "2026-07-08T00:00:00.000Z",
+        updatedAt: "2026-07-08T00:00:00.000Z",
+      } satisfies CareerEvidenceItemView,
+    ]);
+
+    expect(withoutEvidence.find((item) => item.section === "project_bullets")?.valid).toBe(false);
+    expect(withVerifiedEvidence.find((item) => item.section === "project_bullets")?.evidenceSource).toBe("user_input");
+    expect(withVerifiedEvidence.find((item) => item.section === "project_bullets")?.valid).toBe(true);
   });
 });

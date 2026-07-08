@@ -138,6 +138,32 @@ export const projectFitOverrideInputSchema = z.object({
   overrideReason: z.string().trim().min(5, "Override reason is required"),
 });
 
+export const evidenceInputSchema = z.object({
+  id: z.string().trim().optional(),
+  targetType: z.enum(["project", "skill", "bullet", "work_experience", "education"]),
+  targetId: z.string().trim().min(1, "targetId is required"),
+  jdTestId: z.string().trim().default(""),
+  evidenceType: z.enum(["wiki_project", "wiki_workflow", "wiki_changelog", "baseline_resume", "user_input", "external_note"]),
+  title: z.string().trim().min(1, "Evidence title is required"),
+  content: z.string().trim().min(10, "Evidence content is too short"),
+  sourcePath: z.string().trim().default("manual_input"),
+  sourceExcerpt: z.string().trim().default(""),
+  confidence: z.coerce.number().min(0).max(100).default(70),
+  status: z.enum(["draft", "verified", "rejected"]).default("draft"),
+});
+
+export const evidenceUpdateInputSchema = evidenceInputSchema.extend({
+  id: z.string().trim().min(1),
+});
+
+export const evidenceDeleteInputSchema = z.object({
+  id: z.string().trim().min(1),
+});
+
+export const evidenceExportInputSchema = z.object({
+  jdTestId: z.string().trim().default(""),
+});
+
 export type CareerProfileInput = z.infer<typeof careerProfileInputSchema>;
 export type CareerProjectInput = z.infer<typeof careerProjectInputSchema>;
 export type CareerSkillInput = z.infer<typeof careerSkillInputSchema>;
@@ -150,3 +176,7 @@ export type ResumeVersionRenderInput = z.infer<typeof resumeVersionRenderInputSc
 export type ResumeVersionExportFormatInput = z.infer<typeof resumeVersionExportFormatInputSchema>;
 export type ProjectFitRunInput = z.infer<typeof projectFitRunInputSchema>;
 export type ProjectFitOverrideInput = z.infer<typeof projectFitOverrideInputSchema>;
+export type EvidenceInput = z.infer<typeof evidenceInputSchema>;
+export type EvidenceUpdateInput = z.infer<typeof evidenceUpdateInputSchema>;
+export type EvidenceDeleteInput = z.infer<typeof evidenceDeleteInputSchema>;
+export type EvidenceExportInput = z.infer<typeof evidenceExportInputSchema>;

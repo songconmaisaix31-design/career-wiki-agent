@@ -3,7 +3,7 @@ import { scoreProjectEvidence } from "./evidence-score";
 import { scoreProjectKeywords } from "./keyword-score";
 import { scoreProjectRisk } from "./risk-score";
 import type { ProjectFitLevel, ProjectFitOverrideInput, ProjectFitResult, ProjectFitRunContext, ProjectResumeUsage } from "./types";
-import type { CareerProjectView } from "../types";
+import type { CareerEvidenceItemView, CareerProjectView } from "../types";
 
 export function classifyProjectsForJd(context: ProjectFitRunContext): ProjectFitResult[] {
   return context.projects
@@ -57,11 +57,13 @@ export function filterProjectsForResume(projects: CareerProjectView[], projectFi
 }
 
 function classifyProject(context: ProjectFitRunContext, project: CareerProjectView): ProjectFitResult {
-  const keyword = scoreProjectKeywords(context.jdTest, project);
-  const evidence = scoreProjectEvidence(project);
-  const domainScore = scoreProjectDomain(context.jdTest, project, context.targetDirection);
+  const projectEvidence = evidenceForProject(project, context.evidenceItems ?? []);
+  const scoredProject = appendVerifiedEvidence(project, projectEvidence);
+  const keyword = scoreProjectKeywords(context.jdTest, scoredProject);
+  const evidence = scoreProjectEvidence(project, projectEvidence);
+  const domainScore = scoreProjectDomain(context.jdTest, scoredProject, context.targetDirection);
   const risk = scoreProjectRisk(project, evidence.score, keyword.score);
-  const fitScore = clamp(Math.round(keyword.score * 0.35 + evidence.score * 0.3 + domainScore * 0.25 - risk.score * 0.2 + directNameBoost(project.name, context.jdTest.jdText)));
+  const fitScore = clamp(Math.round(keyword.score * 0.35 + evidence.score * 0.3 + domainScore * 0.25 - risk.score * 0.2 + directNameBoost(project.name, context.jdTest.jdText) + verifiedEvidenceBoost(projectEvidence)));
   const fit = decideFit(fitScore, evidence.score, risk.score);
   return {
     project_id: project.id,
@@ -77,7 +79,7 @@ function classifyProject(context: ProjectFitRunContext, project: CareerProjectVi
     supporting_evidence: evidence.evidence,
     risk_warnings: risk.warnings,
     recommended_resume_usage: fit.usage,
-    suggested_bullets: buildSuggestedBullets(project, keyword.matched, fit.usage),
+    suggested_bullets: buildSuggestedBullets(scoredProject, keyword.matched, fit.usage, projectEvidence),
     exclusion_reason: fit.exclusionReason,
   };
 }
@@ -90,14 +92,35 @@ function decideFit(fitScore: number, evidenceScore: number, riskScore: number): 
   return { level: "not_recommended", usage: "do_not_use", exclusionReason: "Low JD match score." };
 }
 
-function buildSuggestedBullets(project: CareerProjectView, matchedRequirements: string[], usage: ProjectResumeUsage) {
+function buildSuggestedBullets(project: CareerProjectView, matchedRequirements: string[], usage: ProjectResumeUsage, evidenceItems: CareerEvidenceItemView[] = []) {
   if (usage === "do_not_use" || usage === "needs_manual_review") return [];
   const status = /wip|prototype|mvp|semi-finished|draft/i.test(project.status) ? `（项目状态：${project.status}）` : "";
-  const source = (project.resumeBullets.length ? project.resumeBullets : project.highlights).filter((item) => !/missing evidence|production-ready/i.test(item));
+  const verifiedEvidence = evidenceItems.filter((item) => item.status === "verified").map((item) => item.content);
+  const source = (project.resumeBullets.length ? project.resumeBullets : project.highlights.length ? project.highlights : verifiedEvidence).filter((item) => !/missing evidence|production-ready/i.test(item));
   return source.slice(0, usage === "primary_project" ? 3 : 2).map((bullet) => {
     const matched = matchedRequirements.slice(0, 3).join(", ");
     return `${project.name}${status}: ${bullet}${matched ? `（JD match: ${matched}）` : ""}`;
   });
+}
+
+function evidenceForProject(project: CareerProjectView, evidenceItems: CareerEvidenceItemView[]) {
+  return evidenceItems.filter((item) => item.targetId === project.id || item.targetId === project.name);
+}
+
+function verifiedEvidenceBoost(evidenceItems: CareerEvidenceItemView[]) {
+  return evidenceItems.some((item) => item.status === "verified") ? 18 : 0;
+}
+
+function appendVerifiedEvidence(project: CareerProjectView, evidenceItems: CareerEvidenceItemView[]): CareerProjectView {
+  const verified = evidenceItems.filter((item) => item.status === "verified");
+  if (!verified.length) return project;
+  return {
+    ...project,
+    description: [project.description, ...verified.map((item) => item.content)].filter(Boolean).join("\n"),
+    interviewStory: [project.interviewStory, ...verified.map((item) => `Verified evidence (${item.evidenceType}): ${item.title} Source: ${item.sourcePath || item.sourceExcerpt}`)]
+      .filter(Boolean)
+      .join("\n"),
+  };
 }
 
 function directNameBoost(projectName: string, jdText: string) {

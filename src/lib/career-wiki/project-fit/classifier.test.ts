@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { CareerJdTestView, CareerProjectView } from "../types";
+import type { CareerEvidenceItemView, CareerJdTestView, CareerProjectView } from "../types";
 import { applyProjectFitOverride, classifyProjectsForJd, filterProjectsForResume } from "./classifier";
 import { renderProjectFitReport } from "./report";
 
@@ -125,6 +125,34 @@ describe("project fit classifier", () => {
     expect(report).toContain("[[Static Blog Theme]]");
     expect(report).not.toMatch(/api[_ -]?key|cookie|token|Missing Evidence|production-ready/i);
   });
+
+  it("uses only verified evidence to raise project fit evidence score", () => {
+    const jdTest = jd("AI Application Engineer", "Need AI agent workflow implementation evidence.");
+    const base = classifyProjectsForJd({ jdTest, projects, targetDirection: "AI Application Engineer" });
+    const draft = classifyProjectsForJd({
+      jdTest,
+      projects,
+      targetDirection: "AI Application Engineer",
+      evidenceItems: [evidence("thin", "draft")],
+    });
+    const verified = classifyProjectsForJd({
+      jdTest,
+      projects,
+      targetDirection: "AI Application Engineer",
+      evidenceItems: [evidence("thin", "verified")],
+    });
+    const rejected = classifyProjectsForJd({
+      jdTest,
+      projects,
+      targetDirection: "AI Application Engineer",
+      evidenceItems: [evidence("thin", "rejected")],
+    });
+
+    expect(byName(draft, "Thin Agent Note").evidence_score).toBe(byName(base, "Thin Agent Note").evidence_score);
+    expect(byName(rejected, "Thin Agent Note").evidence_score).toBe(byName(base, "Thin Agent Note").evidence_score);
+    expect(byName(verified, "Thin Agent Note").evidence_score).toBeGreaterThan(byName(base, "Thin Agent Note").evidence_score);
+    expect(byName(verified, "Thin Agent Note").fit_level).not.toBe("insufficient_evidence");
+  });
 });
 
 function jd(role: string, jdText: string): CareerJdTestView {
@@ -141,6 +169,24 @@ function jd(role: string, jdText: string): CareerJdTestView {
 
 function project(input: Omit<CareerProjectView, "updatedAt">): CareerProjectView {
   return { ...input, updatedAt };
+}
+
+function evidence(targetId: string, status: CareerEvidenceItemView["status"]): CareerEvidenceItemView {
+  return {
+    id: `${targetId}-${status}`,
+    targetType: "project",
+    targetId,
+    jdTestId: "",
+    evidenceType: "user_input",
+    title: "Verified AI workflow evidence",
+    content: "Implemented an AI agent workflow prototype with prompt orchestration and review loop evidence.",
+    sourcePath: "manual_input",
+    sourceExcerpt: "local verified note",
+    confidence: 80,
+    status,
+    createdAt: updatedAt,
+    updatedAt,
+  };
 }
 
 function byName(results: ReturnType<typeof classifyProjectsForJd>, name: string) {

@@ -1,5 +1,6 @@
 import type {
   CareerJdAnalysisView,
+  CareerEvidenceItemView,
   CareerJdTestView,
   CareerProjectView,
   CareerSkillView,
@@ -39,12 +40,14 @@ export function createTailorRunDraft({
   projects,
   skills,
   projectFitResults = [],
+  evidenceItems = [],
 }: {
   baseline: ResumeBaselineView;
   jdTest: CareerJdTestView;
   projects: CareerProjectView[];
   skills: CareerSkillView[];
   projectFitResults?: ProjectFitResult[];
+  evidenceItems?: CareerEvidenceItemView[];
 }): Omit<ResumeTailorRunView, "id" | "baselineId" | "jdTestId" | "updatedAt"> {
   const jdAnalysis = {
     id: "preview",
@@ -61,10 +64,10 @@ export function createTailorRunDraft({
     ),
   };
   const selectedProjects = selectProjects(jdAnalysis, projects, projectFitResults);
-  const targetedSkills = selectSkills(jdAnalysis, skills, baseline.skills);
-  const missingEvidence = findMissingEvidence(jdAnalysis, targetedSkills, selectedProjects, baseline);
-  const riskNotes = buildRiskNotes(selectedProjects, projectFitResults);
-  const rewrittenProjectBullets = selectedProjects.flatMap((project) => rewriteProjectBullets(project, jdAnalysis));
+  const targetedSkills = selectSkills(jdAnalysis, skills, baseline.skills, evidenceItems);
+  const missingEvidence = findMissingEvidence(jdAnalysis, targetedSkills, selectedProjects, baseline, evidenceItems);
+  const riskNotes = buildRiskNotes(selectedProjects, projectFitResults, evidenceItems);
+  const rewrittenProjectBullets = selectedProjects.flatMap((project) => rewriteProjectBullets(project, jdAnalysis, evidenceItems));
   const rewrittenWorkExperience = rewriteWorkExperience(baseline, jdAnalysis);
   const targetedSummary = buildTargetedSummary(baseline, jdTest, targetedSkills, selectedProjects);
   const finalResumeMarkdown = renderTailoredResume({
@@ -120,8 +123,11 @@ function isLowSignalProject(name: string) {
   return /^\.|^(scripts?|n8n|index|project index|workflows?)$/i.test(name.trim());
 }
 
-function selectSkills(analysis: CareerJdAnalysisView, skills: CareerSkillView[], baselineSkills: string[]) {
-  const evidence = new Set([...skills.map((skill) => skill.name.toLowerCase()), ...baselineSkills.map((skill) => skill.toLowerCase())]);
+function selectSkills(analysis: CareerJdAnalysisView, skills: CareerSkillView[], baselineSkills: string[], evidenceItems: CareerEvidenceItemView[] = []) {
+  const verifiedEvidenceText = verifiedEvidence(evidenceItems)
+    .filter((item) => item.targetType === "skill")
+    .flatMap((item) => [item.title, item.content, item.targetId]);
+  const evidence = new Set([...skills.map((skill) => skill.name.toLowerCase()), ...baselineSkills.map((skill) => skill.toLowerCase()), ...verifiedEvidenceText.map((item) => item.toLowerCase())]);
   return analysis.requiredSkills.filter((skill) => hasSkillEvidence(skill, evidence));
 }
 
@@ -130,34 +136,50 @@ function findMissingEvidence(
   targetedSkills: string[],
   selectedProjects: CareerProjectView[],
   baseline: ResumeBaselineView,
+  evidenceItems: CareerEvidenceItemView[] = [],
 ) {
+  const verifiedEvidenceText = verifiedEvidence(evidenceItems).flatMap((item) => [item.title, item.content, item.targetId]);
   const known = new Set([
     ...targetedSkills.map((item) => item.toLowerCase()),
     ...selectedProjects.flatMap((project) => [project.name, ...project.techStack]).map((item) => item.toLowerCase()),
     ...baseline.skills.map((item) => item.toLowerCase()),
+    ...verifiedEvidenceText.map((item) => item.toLowerCase()),
   ]);
   return analysis.requiredSkills.filter((skill) => !hasSkillEvidence(skill, known));
 }
 
-function buildRiskNotes(projects: CareerProjectView[], projectFitResults: ProjectFitResult[] = []) {
+function buildRiskNotes(projects: CareerProjectView[], projectFitResults: ProjectFitResult[] = [], evidenceItems: CareerEvidenceItemView[] = []) {
   const fitWarnings = projectFitResults
     .filter((result) => projects.some((project) => project.id === result.project_id))
     .flatMap((result) => result.risk_warnings);
+  const manualEvidenceWarnings = verifiedEvidence(evidenceItems)
+    .filter((item) => projects.some((project) => project.id === item.targetId || project.name === item.targetId))
+    .filter((item) => item.evidenceType === "user_input" || item.evidenceType === "external_note")
+    .map((item) => `${item.title} 为人工补充证据，审批前需要保留来源说明：${item.sourcePath || item.sourceExcerpt}`);
   return [
     ...projects
     .filter((project) => /wip|prototype|mvp|semi-finished|draft/i.test(project.status))
       .map((project) => `${project.name} 当前状态为 ${project.status}，简历中只能描述已验证范围，不能写成 production-ready。`),
     ...fitWarnings,
+    ...manualEvidenceWarnings,
   ];
 }
 
-function rewriteProjectBullets(project: CareerProjectView, analysis: CareerJdAnalysisView) {
+function rewriteProjectBullets(project: CareerProjectView, analysis: CareerJdAnalysisView, evidenceItems: CareerEvidenceItemView[] = []) {
   const safeStatus = /wip|prototype|mvp|semi-finished|draft/i.test(project.status)
     ? `（项目状态：${project.status}）`
     : "";
-  const base = (project.resumeBullets.length ? project.resumeBullets : project.highlights).filter((item) => !hasUnconfirmedEvidenceText(item));
+  const evidenceBullets = verifiedEvidence(evidenceItems)
+    .filter((item) => item.targetId === project.id || item.targetId === project.name)
+    .filter((item) => item.targetType === "project" || item.targetType === "bullet")
+    .map((item) => item.content);
+  const base = (project.resumeBullets.length ? project.resumeBullets : project.highlights.length ? project.highlights : evidenceBullets).filter((item) => !hasUnconfirmedEvidenceText(item));
   if (!base.length) return [`${project.name}${safeStatus}: 基于已有 Wiki 记录，可围绕 ${analysis.role} 补充可验证项目证据。`];
   return base.slice(0, 3).map((bullet) => `${project.name}${safeStatus}: ${bullet}`);
+}
+
+function verifiedEvidence(evidenceItems: CareerEvidenceItemView[]) {
+  return evidenceItems.filter((item) => item.status === "verified");
 }
 
 function rewriteWorkExperience(baseline: ResumeBaselineView, analysis: CareerJdAnalysisView) {

@@ -5,6 +5,7 @@ import type { CareerJdTest, CareerResumeVersion, Prisma, ResumeBaseline, ResumeT
 
 import { prisma } from "@/lib/db";
 import { buildWikiImportPreview, mergeStringList } from "./wiki-importer";
+import { getEvidenceItems } from "./evidence";
 import { assertChecklistPassed, buildEvidenceSummary, buildExportChecklist, buildResumeDiff } from "./resume-version";
 import { createTailorRunDraft, parseBaselineMarkdown } from "./resume-tailor";
 import { getProjectFitResults } from "./project-fit/repository";
@@ -27,13 +28,14 @@ const DEFAULT_BASELINE_PATH = "D:\\AI-Workspace\\CareerVault\\05_Resume_Versions
 
 export async function getTestHarnessData(): Promise<ResumeTailorHarnessData> {
   await ensureResumeTailorSchema();
-  const [baselines, jdTests, projects, skills, tailorRuns, resumeVersions] = await Promise.all([
+  const [baselines, jdTests, projects, skills, tailorRuns, resumeVersions, evidenceItems] = await Promise.all([
     prisma.resumeBaseline.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.careerJdTest.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.careerProject.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.careerSkill.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.resumeTailorRun.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.careerResumeVersion.findMany({ orderBy: { updatedAt: "desc" } }),
+    getEvidenceItems(),
   ]);
   return {
     baselines: baselines.map(toResumeBaselineView),
@@ -42,6 +44,7 @@ export async function getTestHarnessData(): Promise<ResumeTailorHarnessData> {
     skills: skills.map(toCareerSkillView),
     tailorRuns: tailorRuns.map(toResumeTailorRunView),
     resumeVersions: resumeVersions.map(toCareerResumeVersionView),
+    evidenceItems,
     vaultConfigured: Boolean(process.env.CAREER_VAULT_PATH?.trim()),
   };
 }
@@ -204,13 +207,14 @@ export async function runResumeTailorTests(input: { baselineId?: string; jdTestI
   const runs: ResumeTailorRunView[] = [];
 
   for (const jdTest of jdTests) {
-    const projectFitResults = await getProjectFitResults(jdTest.id);
+    const [projectFitResults, evidenceItems] = await Promise.all([getProjectFitResults(jdTest.id), getEvidenceItems({ jdTestId: jdTest.id })]);
     const draft = createTailorRunDraft({
       baseline: baselineView,
       jdTest: toCareerJdTestView(jdTest),
       projects: projectViews,
       skills: skillViews,
       projectFitResults,
+      evidenceItems,
     });
     const created = await prisma.resumeTailorRun.create({
       data: {
@@ -235,9 +239,10 @@ export async function runResumeTailorTests(input: { baselineId?: string; jdTestI
 
 export async function createCareerResumeVersion(input: ResumeVersionCreateInput) {
   await ensureResumeTailorSchema();
-  const [run, projects] = await Promise.all([
+  const [run, projects, evidenceItems] = await Promise.all([
     prisma.resumeTailorRun.findUnique({ where: { id: input.tailorRunId } }),
     prisma.careerProject.findMany({ orderBy: { updatedAt: "desc" } }),
+    getEvidenceItems(),
   ]);
   if (!run) throw new Error("Resume tailor run not found");
   const baseline = await prisma.resumeBaseline.findUnique({ where: { id: run.baselineId } });
@@ -247,7 +252,7 @@ export async function createCareerResumeVersion(input: ResumeVersionCreateInput)
   const baselineView = toResumeBaselineView(baseline);
   const projectViews = projects.map(toCareerProjectView);
   const diffSummary = buildResumeDiff(baselineView, runView);
-  const evidenceSummary = buildEvidenceSummary(runView, projectViews);
+  const evidenceSummary = buildEvidenceSummary(runView, projectViews, evidenceItems);
   const checklist = buildExportChecklist({
     baselineId: runView.baselineId,
     jdTestId: runView.jdTestId,
@@ -567,6 +572,7 @@ function isEvidenceSource(value: unknown): value is ResumeEvidenceItem["evidence
     value === "wiki_workflow" ||
     value === "wiki_changelog" ||
     value === "baseline_resume" ||
+    value === "external_note" ||
     value === "user_input" ||
     value === "missing_evidence" ||
     value === "unknown"

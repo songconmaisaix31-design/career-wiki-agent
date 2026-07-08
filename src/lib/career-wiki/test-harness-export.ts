@@ -453,6 +453,7 @@ function isEvidenceSource(value: unknown): value is ResumeEvidenceItem["evidence
     value === "wiki_workflow" ||
     value === "wiki_changelog" ||
     value === "baseline_resume" ||
+    value === "external_note" ||
     value === "user_input" ||
     value === "missing_evidence" ||
     value === "unknown"

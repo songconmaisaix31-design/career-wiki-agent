@@ -1,4 +1,4 @@
-import type { CareerJdTestView, CareerProjectView } from "../types";
+import type { CareerEvidenceItemView, CareerJdTestView, CareerProjectView } from "../types";
 
 export type ProjectFitLevel = "strong_fit" | "medium_fit" | "weak_fit" | "not_recommended" | "insufficient_evidence";
 
@@ -45,6 +45,7 @@ export type ProjectFitRunContext = {
   jdTest: CareerJdTestView;
   projects: CareerProjectView[];
   targetDirection?: string;
+  evidenceItems?: CareerEvidenceItemView[];
 };
 
 export type ProjectFitReport = {

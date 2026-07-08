@@ -22,6 +22,28 @@ export type CareerProjectView = {
   updatedAt: string;
 };
 
+export type CareerEvidenceTargetType = "project" | "skill" | "bullet" | "work_experience" | "education";
+
+export type CareerEvidenceType = "wiki_project" | "wiki_workflow" | "wiki_changelog" | "baseline_resume" | "user_input" | "external_note";
+
+export type CareerEvidenceStatus = "draft" | "verified" | "rejected";
+
+export type CareerEvidenceItemView = {
+  id: string;
+  targetType: CareerEvidenceTargetType;
+  targetId: string;
+  jdTestId: string;
+  evidenceType: CareerEvidenceType;
+  title: string;
+  content: string;
+  sourcePath: string;
+  sourceExcerpt: string;
+  confidence: number;
+  status: CareerEvidenceStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CareerSkillView = {
   id: string;
   name: string;
@@ -150,7 +172,7 @@ export type ResumeTailorRunView = {
 
 export type ResumeVersionStatus = "draft" | "approved" | "exported" | "archived";
 
-export type ResumeEvidenceSource = "wiki_project" | "wiki_workflow" | "wiki_changelog" | "baseline_resume" | "user_input";
+export type ResumeEvidenceSource = "wiki_project" | "wiki_workflow" | "wiki_changelog" | "baseline_resume" | "user_input" | "external_note";
 
 export type ResumeEvidenceItem = {
   section: string;
@@ -220,5 +242,6 @@ export type ResumeTailorHarnessData = {
   skills: CareerSkillView[];
   tailorRuns: ResumeTailorRunView[];
   resumeVersions: CareerResumeVersionView[];
+  evidenceItems: CareerEvidenceItemView[];
   vaultConfigured: boolean;
 };

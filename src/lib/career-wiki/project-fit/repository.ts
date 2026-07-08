@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
+import { getEvidenceItems } from "../evidence";
 import { createCareerExportLog, ensureCareerWikiSchema } from "../repository";
 import { sanitizeWindowsFilename } from "../rules";
 import type { CareerJdTestView, CareerProjectView } from "../types";
@@ -24,9 +25,9 @@ type ProjectFitRow = {
 
 export async function runProjectFitClassifier(input: ProjectFitRunInput) {
   await ensureProjectFitSchema();
-  const [jdTest, projects] = await Promise.all([loadJdTest(input.jdTestId), loadProjects()]);
+  const [jdTest, projects, evidenceItems] = await Promise.all([loadJdTest(input.jdTestId), loadProjects(), getEvidenceItems({ jdTestId: input.jdTestId })]);
   const targetDirection = input.targetDirection?.trim() || jdTest.targetDirection || jdTest.role;
-  const results = classifyProjectsForJd({ jdTest, projects, targetDirection });
+  const results = classifyProjectsForJd({ jdTest, projects, targetDirection, evidenceItems });
   const saved: ProjectFitResult[] = [];
 
   for (const result of results) {
