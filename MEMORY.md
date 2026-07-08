@@ -32,3 +32,5 @@
 - 2026-07-08: Resume Evidence Editor adds `CareerEvidenceItem` runtime storage. Only `verified` evidence can improve Project Fit or support Resume Tailor evidence validation; `draft` is visible but unscored, and `rejected` is ignored.
 - 2026-07-08: Production Quality Consolidation should keep Career Wiki local-first, add workflow state, audit logs, evidence quality review, ops health/integrity checks, and sensitive guards without adding recruiting-platform automation or external account workflows.
 - 2026-07-08: Maintenance commands must not read or print `.env`; they should default to local `file:./dev.db` when no runtime database URL is provided and must avoid exporting secrets.
+- 2026-07-08: v0.3 production-quality consolidation adds workflow, audit, evidence review, dashboard, healthcheck, integrity, backup, and sensitive guards as runtime/local-first layers. Open high-severity evidence review items block resume approval.
+- 2026-07-08: `npm run career:integrity` may return `warn` with exit code 0 when real-use data is incomplete; only `fail` represents a blocking integrity problem.

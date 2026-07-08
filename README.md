@@ -144,6 +144,14 @@ AI features stay disabled until the settings are saved and the connection test s
 - The local line intentionally excludes automatic job application, recruiting platform crawling, login automation, HR messaging, cookie management, proxy pools, captcha bypass, and login-state automation.
 - Current production-quality work focuses on workflow state, audit logs, evidence quality review, operations checks, sensitive-content guards, and safer final resume export.
 
+Local production-quality commands:
+
+```bash
+npm run career:healthcheck
+npm run career:integrity
+npm run career:backup
+```
+
 ### v0.1.6
 
 - Fixed Dashboard due follow-up calculation: applied roles without a manual follow-up now use seven days after applying as the suggested follow-up date.

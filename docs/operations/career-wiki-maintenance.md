@@ -38,3 +38,21 @@ npm run career:integrity
 ```
 
 These commands should remain local-only and must not require external accounts.
+
+## Healthcheck Result
+
+`npm run career:healthcheck` returns:
+
+- `pass`: local database query works and Career Vault is present.
+- `warn`: local data path or vault needs attention, but the command itself worked.
+- `fail`: database query or required runtime check failed.
+
+## Integrity Result
+
+`npm run career:integrity` returns:
+
+- `pass`: no warnings or blockers found.
+- `warn`: real-use data is incomplete, such as no verified evidence or no approved resume version.
+- `fail`: blocking evidence review items or database errors were found.
+
+Warnings are useful during setup and should not be treated as failed tooling unless the release checklist requires fully populated real data.
