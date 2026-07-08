@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Download, GitMerge, ShieldCheck } from "lucide-react";
+import { GitMerge, ShieldCheck } from "lucide-react";
 
 import { CareerWikiAppShell } from "@/components/career-wiki/app-shell";
+import { EvidenceReviewExportButton } from "@/components/career-wiki/evidence-review-export-button";
 import { EvidenceReviewQueue } from "@/components/career-wiki/evidence-review-queue";
 import { Button } from "@/components/ui/button";
 import { listEvidenceReviewItems } from "@/lib/career-wiki/evidence-review/repository";
@@ -31,10 +32,7 @@ export default async function EvidenceReviewPage() {
             <GitMerge className="size-4" />
             重新运行 Project Fit
           </Button>
-          <Button variant="outline" size="sm" render={<Link href="/api/career-wiki/evidence-review/export" />}>
-            <Download className="size-4" />
-            导出审核报告
-          </Button>
+          <EvidenceReviewExportButton />
           <Button size="sm" render={<Link href="/career-wiki/evidence-editor" />}>
             <ShieldCheck className="size-4" />
             补充证据

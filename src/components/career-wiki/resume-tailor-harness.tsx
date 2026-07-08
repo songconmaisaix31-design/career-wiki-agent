@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition } from "react";
 import { Download, FileText, GitMerge, ListChecks, Play, Upload } from "lucide-react";
 
 import { CareerWikiAppShell } from "@/components/career-wiki/app-shell";
+import { labelForStatus } from "@/components/career-wiki/navigation";
 import type { CareerWikiRouteKey } from "@/components/career-wiki/navigation";
 import type {
   CareerEvidenceItemView,
@@ -157,7 +158,7 @@ export function ResumeTailorHarness({
         );
         setPreview(result.preview);
         await refresh();
-        setStatus(result.applied ? `已导入 ${result.projectCount} 个项目、${result.skillCount} 个技能。` : "Dry-run 已完成，未写入数据库。");
+        setStatus(result.applied ? `已导入 ${result.projectCount} 个项目、${result.skillCount} 个技能。` : "预演完成，未写入数据库。");
       } catch (error) {
         setStatus(formatError(error));
       }
@@ -665,7 +666,7 @@ export function ResumeTailorHarness({
     <section className="space-y-4">
       <div className="flex flex-wrap gap-2">
         <ActionButton onClick={onPreview} disabled={isPending} icon={GitMerge} label="生成预览" />
-        <ActionButton onClick={() => onApply(true)} disabled={isPending} icon={Play} label="Dry-run" variant="secondary" />
+        <ActionButton onClick={() => onApply(true)} disabled={isPending} icon={Play} label="预演导入" variant="secondary" />
         <ActionButton onClick={() => onApply(false)} disabled={isPending || !preview} icon={Upload} label="确认导入" />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
@@ -1316,15 +1317,15 @@ function TailorRunsPanel({
         <h2 className="text-base font-semibold">Step 7 · 用户确认后保存为正式版本</h2>
         {selectedVersion ? (
           <div className="mt-3 grid gap-3 lg:grid-cols-2">
-            <ListBlock title={`${selectedVersion.versionName} · ${selectedVersion.status}`} items={[`${selectedVersion.company} · ${selectedVersion.role}`]} />
+            <ListBlock title={`${selectedVersion.versionName} · ${labelForStatus(selectedVersion.status)}`} items={[`${selectedVersion.company} · ${selectedVersion.role}`]} />
             <ListBlock
               title="导出前检查清单"
-              items={selectedVersion.checklist.map((item) => `${item.passed ? "PASS" : "BLOCK"} · ${item.label}${item.reason ? `：${item.reason}` : ""}`)}
+              items={selectedVersion.checklist.map((item) => `${item.passed ? "通过" : "阻断"} · ${item.label}${item.reason ? `：${item.reason}` : ""}`)}
             />
             <ListBlock title="Diff" items={selectedVersion.diffSummary.projectBullets.slice(0, 6)} />
-            <ListBlock title="Evidence validation" items={selectedVersion.evidenceSummary.map((item) => `${item.valid ? "PASS" : "BLOCK"} · ${item.section} · ${item.evidenceSource}`)} />
+            <ListBlock title="证据校验" items={selectedVersion.evidenceSummary.map((item) => `${item.valid ? "通过" : "阻断"} · ${item.section} · ${item.evidenceSource}`)} />
             <div className="flex flex-wrap gap-2 lg:col-span-2">
-              <ActionButton onClick={() => onApprove(selectedVersion.id)} disabled={isPending || selectedVersion.status !== "draft"} icon={ListChecks} label="确认为 approved" />
+              <ActionButton onClick={() => onApprove(selectedVersion.id)} disabled={isPending || selectedVersion.status !== "draft"} icon={ListChecks} label="确认为已批准" />
               <ActionButton
                 onClick={() => onExport(selectedVersion.id)}
                 disabled={isPending || (selectedVersion.status !== "approved" && selectedVersion.status !== "exported")}
@@ -1338,7 +1339,7 @@ function TailorRunsPanel({
         )}
       </div>
 
-      <PreviewList title="历史版本" items={versions.slice(0, 8).map((version) => `${version.versionName} · ${version.status} · ${version.company} · ${version.role}`)} />
+      <PreviewList title="历史版本" items={versions.slice(0, 8).map((version) => `${version.versionName} · ${labelForStatus(version.status)} · ${version.company} · ${version.role}`)} />
     </section>
   );
 }
@@ -1379,14 +1380,14 @@ function ResumeVersionsPanel({
         items={versions}
         selectedIds={selected ? [selected.id] : []}
         setSelectedIds={(ids) => setSelectedVersionId(ids.at(-1) ?? "")}
-        labelOf={(version) => `${version.versionName} · ${version.status} · ${version.company} · ${version.role}`}
+        labelOf={(version) => `${version.versionName} · ${labelForStatus(version.status)} · ${version.company} · ${version.role}`}
       />
       {selected ? (
         <article className="rounded-lg border border-line bg-surface p-4">
           <h2 className="text-base font-semibold">
             {selected.versionName} · {selected.company} · {selected.role}
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">Status: {selected.status}</p>
+          <p className="mt-1 text-sm text-muted-foreground">状态：{labelForStatus(selected.status)} · {selected.status}</p>
           <div className="mt-3 grid gap-2 rounded-md border border-line bg-background p-3">
             <label className="text-sm font-medium">
               简历模板
@@ -1412,7 +1413,7 @@ function ResumeVersionsPanel({
             </Link>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <ActionButton onClick={() => onApprove(selected.id)} disabled={isPending || selected.status !== "draft"} icon={ListChecks} label="标记 approved" />
+            <ActionButton onClick={() => onApprove(selected.id)} disabled={isPending || selected.status !== "draft"} icon={ListChecks} label="标记已批准" />
             <ActionButton onClick={() => onArchive(selected.id)} disabled={isPending || selected.status === "archived"} icon={FileText} label="归档" variant="secondary" />
             <ActionButton
               onClick={() => onExport(selected.id)}
@@ -1422,8 +1423,8 @@ function ResumeVersionsPanel({
             />
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <ActionButton onClick={() => onRender(selected.id, "markdown", selectedTemplate)} disabled={isPending} icon={FileText} label="Markdown preview" variant="secondary" />
-            <ActionButton onClick={() => onRender(selected.id, "html", selectedTemplate)} disabled={isPending} icon={FileText} label="HTML preview" variant="secondary" />
+            <ActionButton onClick={() => onRender(selected.id, "markdown", selectedTemplate)} disabled={isPending} icon={FileText} label="预览 Markdown" variant="secondary" />
+            <ActionButton onClick={() => onRender(selected.id, "html", selectedTemplate)} disabled={isPending} icon={FileText} label="预览 HTML" variant="secondary" />
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {(["markdown", "json", "html", "docx", "pdf"] as const).map((format) => (
@@ -1432,21 +1433,21 @@ function ResumeVersionsPanel({
                 onClick={() => onExportFormat(selected.id, format)}
                 disabled={isPending || !canExport}
                 icon={Download}
-                label={`Export ${format.toUpperCase()}`}
+                label={`导出 ${format.toUpperCase()}`}
                 variant="secondary"
               />
             ))}
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <ListBlock title="导出前检查清单" items={selected.checklist.map((item) => `${item.passed ? "PASS" : "BLOCK"} · ${item.label}${item.reason ? `：${item.reason}` : ""}`)} />
+            <ListBlock title="导出前检查清单" items={selected.checklist.map((item) => `${item.passed ? "通过" : "阻断"} · ${item.label}${item.reason ? `：${item.reason}` : ""}`)} />
             <ListBlock title="风险提示" items={selected.riskNotes} />
             <ListBlock title="Diff · Project Bullets" items={selected.diffSummary.projectBullets} />
-            <ListBlock title="Evidence" items={selected.evidenceSummary.map((item) => `${item.valid ? "PASS" : "BLOCK"} · ${item.content}`)} />
+            <ListBlock title="证据校验" items={selected.evidenceSummary.map((item) => `${item.valid ? "通过" : "阻断"} · ${item.content}`)} />
           </div>
           {renderPreview ? (
             <div className="mt-4 rounded-md border border-line bg-background p-3">
               <h3 className="text-sm font-medium">
-                {renderPreview.format.toUpperCase()} preview · {renderPreview.template}
+                {renderPreview.format.toUpperCase()} 预览 · {renderPreview.template}
               </h3>
               {renderPreview.format === "html" ? (
                 <iframe title="HTML resume preview" srcDoc={renderPreview.content} className="mt-2 h-[640px] w-full rounded-md border border-line bg-white" />
@@ -1455,7 +1456,7 @@ function ResumeVersionsPanel({
               )}
             </div>
           ) : (
-            <p className="mt-4 text-sm text-muted-foreground">点击 preview 生成 Markdown 或 HTML 预览；draft 可以预览，但不能导出 final。</p>
+            <p className="mt-4 text-sm text-muted-foreground">点击预览生成 Markdown 或 HTML；草稿可以预览，但不能导出 final。</p>
           )}
         </article>
       ) : (

@@ -127,10 +127,12 @@ function Detail({ label, value }: { label: string; value: string }) {
 
 function summarize(value: unknown) {
   if (!value) return "无";
-  try {
-    const text = JSON.stringify(value);
-    return text.length > 480 ? `${text.slice(0, 480)}...` : text;
-  } catch {
-    return "无法显示";
+  if (typeof value === "string") return value.length > 240 ? `${value.slice(0, 240)}...` : value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return `列表，共 ${value.length} 项。`;
+  if (typeof value === "object") {
+    const keys = Object.keys(value as Record<string, unknown>);
+    return keys.length ? `对象摘要：${keys.slice(0, 8).join("、")}${keys.length > 8 ? " 等字段" : ""}。` : "空对象。";
   }
+  return "无法显示";
 }
