@@ -26,3 +26,5 @@
 - 2026-07-08: Document ingestion upgrade uses a guarded local parser layer for Markdown/TXT/HTML and an optional MarkItDown CLI sidecar for PDF/DOCX. Missing MarkItDown must be a user-facing fallback, not a hard failure for other formats.
 - 2026-07-08: Resume rendering now flows through `ResumeRenderSchema` before Markdown/JSON/HTML/DOCX/PDF export so evidence filtering, secret checks, ReviewFlow AI status rules, and production-ready overclaim guards stay centralized.
 - 2026-07-08: Server-side PDF generation is intentionally a graceful HTML-print fallback until a dedicated renderer is selected; do not add browser automation or heavyweight rendering dependencies just for PDF without a separate decision.
+- 2026-07-08: Resume Template Preview MVP adds `modern`, `ats`, and `compact` HTML templates on top of `ResumeRenderSchema`; templates control layout only and must not bypass evidence filtering or include risk/evidence reports in final resume body.
+- 2026-07-08: Standalone resume preview lives at `/career-wiki/resume-versions/[id]/preview?template=...` and uses browser print/save-as-PDF instead of server-side PDF generation.

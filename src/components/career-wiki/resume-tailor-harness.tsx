@@ -14,6 +14,7 @@ import type {
   WikiImportPreview,
 } from "@/lib/career-wiki/types";
 import type { ParsedDocument } from "@/lib/career-wiki/document-ingest/types";
+import type { ResumeTemplateId } from "@/lib/career-wiki/resume-templates/templates";
 import { cn } from "@/lib/utils";
 
 export type ResumeTailorHarnessSection = "wiki-import" | "jd-import" | "resume-baseline" | "resume-tests" | "resume-tailor" | "resume-versions";
@@ -63,7 +64,8 @@ export function ResumeTailorHarness({
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>(initialData.projects.slice(0, 4).map((project) => project.id));
   const [selectedRunIds, setSelectedRunIds] = useState<string[]>(initialData.tailorRuns.slice(0, 1).map((run) => run.id));
   const [selectedVersionId, setSelectedVersionId] = useState(initialData.resumeVersions[0]?.id ?? "");
-  const [renderPreview, setRenderPreview] = useState<{ format: "markdown" | "html"; content: string } | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<ResumeTemplateId>("modern");
+  const [renderPreview, setRenderPreview] = useState<{ format: "markdown" | "html"; content: string; template: ResumeTemplateId } | null>(null);
   const [status, setStatus] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -283,16 +285,16 @@ export function ResumeTailorHarness({
     });
   }
 
-  function renderVersion(id: string, format: "markdown" | "html") {
+  function renderVersion(id: string, format: "markdown" | "html", template = selectedTemplate) {
     startTransition(async () => {
       try {
         const result = await requestJson<{ format: "markdown" | "html"; content: string }>(
           "/api/career-wiki/resume-versions/render",
-          { versionId: id, format },
+          { versionId: id, format, template },
           "POST",
         );
-        setRenderPreview(result);
-        setStatus(`${format.toUpperCase()} 预览已生成。`);
+        setRenderPreview({ ...result, template });
+        setStatus(`${format.toUpperCase()} · ${template} 预览已生成。`);
       } catch (error) {
         setStatus(formatError(error));
       }
@@ -304,7 +306,7 @@ export function ResumeTailorHarness({
       try {
         const result = await requestJson<{ configured: boolean; message: string; files: string[] }>(
           "/api/career-wiki/resume-versions/export-format",
-          { versionId: id, format },
+          { versionId: id, format, template: selectedTemplate, page_size: "A4", include_internal_reports: false },
           "POST",
         );
         await refresh();
@@ -449,6 +451,8 @@ export function ResumeTailorHarness({
               onRender={renderVersion}
               onExportFormat={exportVersionFormat}
               renderPreview={renderPreview}
+              selectedTemplate={selectedTemplate}
+              setSelectedTemplate={setSelectedTemplate}
               isPending={isPending}
             />
           )}
@@ -816,6 +820,8 @@ function ResumeVersionsPanel({
   onRender,
   onExportFormat,
   renderPreview,
+  selectedTemplate,
+  setSelectedTemplate,
   isPending,
 }: {
   versions: CareerResumeVersionView[];
@@ -824,9 +830,11 @@ function ResumeVersionsPanel({
   onApprove: (id: string) => void;
   onArchive: (id: string) => void;
   onExport: (id: string) => void;
-  onRender: (id: string, format: "markdown" | "html") => void;
+  onRender: (id: string, format: "markdown" | "html", template?: ResumeTemplateId) => void;
   onExportFormat: (id: string, format: "markdown" | "json" | "html" | "docx" | "pdf") => void;
-  renderPreview: { format: "markdown" | "html"; content: string } | null;
+  renderPreview: { format: "markdown" | "html"; content: string; template: ResumeTemplateId } | null;
+  selectedTemplate: ResumeTemplateId;
+  setSelectedTemplate: (template: ResumeTemplateId) => void;
   isPending: boolean;
 }) {
   const selected = versions.find((version) => version.id === selectedVersionId) ?? versions[0];
@@ -846,6 +854,30 @@ function ResumeVersionsPanel({
             {selected.versionName} · {selected.company} · {selected.role}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">Status: {selected.status}</p>
+          <div className="mt-3 grid gap-2 rounded-md border border-line bg-background p-3">
+            <label className="text-sm font-medium">
+              简历模板
+              <select
+                value={selectedTemplate}
+                onChange={(event) => {
+                  const template = event.target.value as ResumeTemplateId;
+                  setSelectedTemplate(template);
+                  onRender(selected.id, "html", template);
+                }}
+                className="mt-1 h-10 w-full rounded-md border border-line bg-surface px-3 text-sm"
+              >
+                <option value="modern">modern · 视觉增强</option>
+                <option value="ats">ats · ATS 保守结构</option>
+                <option value="compact">compact · 高信息密度</option>
+              </select>
+            </label>
+            <Link
+              href={`/career-wiki/resume-versions/${selected.id}/preview?template=${selectedTemplate}`}
+              className="inline-flex min-h-9 w-fit items-center rounded-md border border-line px-3 text-sm hover:bg-surface-low"
+            >
+              打开独立预览页
+            </Link>
+          </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <ActionButton onClick={() => onApprove(selected.id)} disabled={isPending || selected.status !== "draft"} icon={ListChecks} label="标记 approved" />
             <ActionButton onClick={() => onArchive(selected.id)} disabled={isPending || selected.status === "archived"} icon={FileText} label="归档" variant="secondary" />
@@ -857,8 +889,8 @@ function ResumeVersionsPanel({
             />
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <ActionButton onClick={() => onRender(selected.id, "markdown")} disabled={isPending} icon={FileText} label="Markdown preview" variant="secondary" />
-            <ActionButton onClick={() => onRender(selected.id, "html")} disabled={isPending} icon={FileText} label="HTML preview" variant="secondary" />
+            <ActionButton onClick={() => onRender(selected.id, "markdown", selectedTemplate)} disabled={isPending} icon={FileText} label="Markdown preview" variant="secondary" />
+            <ActionButton onClick={() => onRender(selected.id, "html", selectedTemplate)} disabled={isPending} icon={FileText} label="HTML preview" variant="secondary" />
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {(["markdown", "json", "html", "docx", "pdf"] as const).map((format) => (
@@ -880,7 +912,9 @@ function ResumeVersionsPanel({
           </div>
           {renderPreview ? (
             <div className="mt-4 rounded-md border border-line bg-background p-3">
-              <h3 className="text-sm font-medium">{renderPreview.format.toUpperCase()} preview</h3>
+              <h3 className="text-sm font-medium">
+                {renderPreview.format.toUpperCase()} preview · {renderPreview.template}
+              </h3>
               {renderPreview.format === "html" ? (
                 <iframe title="HTML resume preview" srcDoc={renderPreview.content} className="mt-2 h-[640px] w-full rounded-md border border-line bg-white" />
               ) : (

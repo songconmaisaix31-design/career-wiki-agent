@@ -1,0 +1,16 @@
+{
+  "profile": { "title": "Acme - AI Application Engineer", "company": "Acme", "role": "AI Application Engineer" },
+  "target_role": "AI Application Engineer",
+  "summary": "具备 AI 应用开发、Next.js 和自动化项目经验，能围绕业务场景交付可验证原型。",
+  "skills": [{ "category": "Core Skills", "items": ["TypeScript", "Next.js", "LLM", "RAG", "Workflow Automation"] }],
+  "work_experience": ["负责业务流程自动化原型设计、数据整理和交付文档维护。"],
+  "projects": [
+    { "name": "ReviewFlow AI", "status": "WIP / prototype / semi-finished", "bullets": ["构建评审流程原型，沉淀需求、风险和可验证输出。"] },
+    { "name": "Finance-Agent-Lab", "status": "MVP", "bullets": ["围绕财务分析场景整理 Agent 工作流和演示材料。"] }
+  ],
+  "education": ["本科，信息管理相关方向"],
+  "awards": [],
+  "evidence_summary": [],
+  "risk_notes": ["ReviewFlow AI 保持 WIP / prototype / semi-finished 表述。"],
+  "metadata": { "version_id": "fixture-ai", "version_name": "v1", "status": "approved", "generated_at": "2026-07-08T00:00:00.000Z" }
+}

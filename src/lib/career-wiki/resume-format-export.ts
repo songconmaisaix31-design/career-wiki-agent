@@ -12,19 +12,30 @@ import { renderResumeHtml } from "./renderers/html-renderer";
 import { renderResumeJson } from "./renderers/json-renderer";
 import { renderResumeMarkdown } from "./renderers/markdown-renderer";
 import { renderResumePdfFallback } from "./renderers/pdf-renderer";
+import type { ResumePageSize, ResumeTemplateId } from "./resume-templates/templates";
 
 export type ResumeExportFormat = "markdown" | "json" | "html" | "docx" | "pdf";
 
-export async function renderResumeVersion(versionId: string, format: "markdown" | "json" | "html") {
+export async function renderResumeVersion(versionId: string, format: "markdown" | "json" | "html", template: ResumeTemplateId = "modern") {
   const version = await getCareerResumeVersionById(versionId);
   const schema = buildResumeRenderSchema(version);
   assertSafeRenderSchema(schema);
   if (format === "markdown") return { format, content: renderResumeMarkdown(schema) };
-  if (format === "json") return { format, content: renderResumeJson(schema) };
-  return { format, content: renderResumeHtml(schema) };
+  if (format === "json") return { format, content: renderResumeJson(schema, template) };
+  return { format, content: renderResumeHtml(schema, template) };
 }
 
-export async function exportResumeVersionFormat(versionId: string, format: ResumeExportFormat) {
+export async function exportResumeVersionFormat({
+  versionId,
+  format,
+  template = "modern",
+}: {
+  versionId: string;
+  format: ResumeExportFormat;
+  template?: ResumeTemplateId;
+  pageSize?: ResumePageSize;
+  includeInternalReports?: boolean;
+}) {
   const vaultPath = process.env.CAREER_VAULT_PATH?.trim();
   if (!vaultPath) return { configured: false, message: "未配置 CAREER_VAULT_PATH，请先设置 CareerVault 路径。", files: [] as string[] };
 
@@ -46,20 +57,20 @@ export async function exportResumeVersionFormat(versionId: string, format: Resum
 
   const slug = sanitizeWindowsFilename(`${version.company}-${version.role}-v${versionNumberFromName(version.versionName)}`);
   const files: string[] = [];
-  const baseName = `${slug}-final-resume`;
+  const baseName = `${slug}-${template}-final-resume`;
 
   if (format === "markdown") {
     files.push(await writeText(vaultPath, `${baseName}.md`, renderResumeMarkdown(schema), "final_resume_markdown", version.id));
   } else if (format === "json") {
-    files.push(await writeText(vaultPath, `${baseName}.json`, renderResumeJson(schema), "final_resume_json", version.id));
+    files.push(await writeText(vaultPath, `${slug}-${template}-render-schema.json`, renderResumeJson(schema, template), "final_resume_json", version.id));
   } else if (format === "html") {
-    files.push(await writeText(vaultPath, `${baseName}.html`, renderResumeHtml(schema), "final_resume_html", version.id));
+    files.push(await writeText(vaultPath, `${baseName}.html`, renderResumeHtml(schema, template), "final_resume_html", version.id));
   } else if (format === "docx") {
-    files.push(await writeBinary(vaultPath, `${baseName}.docx`, await renderResumeDocx(schema), "final_resume_docx", version.id));
+    files.push(await writeBinary(vaultPath, `${baseName}.docx`, await renderResumeDocx(schema, template), "final_resume_docx", version.id));
   } else {
-    const fallback = renderResumePdfFallback(schema);
+    const fallback = renderResumePdfFallback(schema, template);
     files.push(await writeText(vaultPath, `${baseName}-pdf-fallback.html`, fallback.html, "final_resume_pdf_fallback", version.id));
-    files.push(await writeText(vaultPath, `${slug}-pdf-fallback-note.md`, fallback.message, "final_resume_pdf_fallback_note", version.id));
+    files.push(await writeText(vaultPath, `${slug}-${template}-pdf-fallback-note.md`, fallback.message, "final_resume_pdf_fallback_note", version.id));
   }
 
   files.push(await writeText(vaultPath, `${slug}-evidence-report.md`, renderEvidenceReport(schema), "resume_evidence_report", version.id));

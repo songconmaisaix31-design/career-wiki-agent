@@ -8,7 +8,15 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   try {
     const input = resumeVersionExportFormatInputSchema.parse(await request.json());
-    return Response.json(await exportResumeVersionFormat(input.versionId, input.format));
+    return Response.json(
+      await exportResumeVersionFormat({
+        versionId: input.versionId,
+        format: input.format,
+        template: input.template,
+        pageSize: input.page_size,
+        includeInternalReports: input.include_internal_reports,
+      }),
+    );
   } catch (error) {
     return apiError(error);
   }

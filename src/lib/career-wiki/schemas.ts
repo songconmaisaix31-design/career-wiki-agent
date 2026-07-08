@@ -114,11 +114,16 @@ export const documentIngestConfirmInputSchema = z.object({
 export const resumeVersionRenderInputSchema = z.object({
   versionId: z.string().trim().min(1),
   format: z.enum(["markdown", "json", "html"]).default("html"),
+  template: z.enum(["modern", "ats", "compact"]).default("modern"),
+  page_size: z.enum(["A4"]).default("A4"),
 });
 
 export const resumeVersionExportFormatInputSchema = z.object({
   versionId: z.string().trim().min(1),
   format: z.enum(["markdown", "json", "html", "docx", "pdf"]),
+  template: z.enum(["modern", "ats", "compact"]).default("modern"),
+  page_size: z.enum(["A4"]).default("A4"),
+  include_internal_reports: z.boolean().default(false),
 });
 
 export type CareerProfileInput = z.infer<typeof careerProfileInputSchema>;

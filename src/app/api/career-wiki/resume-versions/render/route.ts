@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   try {
     const input = resumeVersionRenderInputSchema.parse(await request.json());
-    return Response.json(await renderResumeVersion(input.versionId, input.format));
+    return Response.json(await renderResumeVersion(input.versionId, input.format, input.template));
   } catch (error) {
     return apiError(error);
   }
