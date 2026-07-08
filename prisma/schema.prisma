@@ -209,3 +209,54 @@ model CareerExportLog {
   filePath   String
   createdAt  DateTime @default(now())
 }
+
+model ResumeBaseline {
+  id                 String   @id @default(cuid())
+  name               String
+  source             String   @default("manual")
+  content            Json
+  workExperience     Json
+  projects           Json
+  skills             Json
+  education          Json
+  selfSummary        String   @default("")
+  originalResumeText String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tailorRuns ResumeTailorRun[]
+}
+
+model CareerJdTest {
+  id              String   @id @default(cuid())
+  company         String
+  role            String
+  source          String   @default("")
+  jdText          String
+  targetDirection String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tailorRuns ResumeTailorRun[]
+}
+
+model ResumeTailorRun {
+  id                      String   @id @default(cuid())
+  jdAnalysis              Json
+  targetedSummary         String   @default("")
+  targetedSkills          Json
+  selectedProjects        Json
+  rewrittenProjectBullets Json
+  rewrittenWorkExperience Json
+  riskNotes               Json
+  missingEvidence         Json
+  finalResumeMarkdown     String
+  comparisonReport        Json
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  baselineId String
+  baseline   ResumeBaseline @relation(fields: [baselineId], references: [id], onDelete: Cascade)
+  jdTestId   String
+  jdTest     CareerJdTest   @relation(fields: [jdTestId], references: [id], onDelete: Cascade)
+}

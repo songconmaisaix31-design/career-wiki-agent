@@ -1,0 +1,601 @@
+"use client";
+
+import Link from "next/link";
+import { useMemo, useState, useTransition } from "react";
+import { ArrowLeft, Download, FileText, GitMerge, ListChecks, Play, Upload } from "lucide-react";
+
+import type {
+  CareerJdTestView,
+  ResumeBaselineView,
+  ResumeTailorHarnessData,
+  ResumeTailorRunView,
+  WikiImportPreview,
+} from "@/lib/career-wiki/types";
+import { cn } from "@/lib/utils";
+
+export type ResumeTailorHarnessSection = "wiki-import" | "resume-baseline" | "resume-tests" | "resume-tailor";
+
+type JdTestDraft = {
+  company: string;
+  role: string;
+  source: string;
+  targetDirection: string;
+  jdText: string;
+};
+
+const navItems: Array<{ section: ResumeTailorHarnessSection; label: string; icon: typeof FileText }> = [
+  { section: "wiki-import", label: "Wiki 导入", icon: GitMerge },
+  { section: "resume-baseline", label: "基准简历", icon: FileText },
+  { section: "resume-tests", label: "JD 测试集", icon: ListChecks },
+  { section: "resume-tailor", label: "简历测试", icon: Play },
+];
+
+const emptyJdDraft: JdTestDraft = {
+  company: "",
+  role: "",
+  source: "manual",
+  targetDirection: "AI Application Engineer",
+  jdText: "",
+};
+
+export function ResumeTailorHarness({
+  initialSection,
+  initialData,
+}: {
+  initialSection: ResumeTailorHarnessSection;
+  initialData: ResumeTailorHarnessData;
+}) {
+  const [data, setData] = useState(initialData);
+  const [preview, setPreview] = useState<WikiImportPreview | null>(null);
+  const [baselineMarkdown, setBaselineMarkdown] = useState("");
+  const [jdDraft, setJdDraft] = useState<JdTestDraft>(emptyJdDraft);
+  const [selectedBaselineId, setSelectedBaselineId] = useState(initialData.baselines[0]?.id ?? "");
+  const [selectedJdIds, setSelectedJdIds] = useState<string[]>(initialData.jdTests.slice(0, 3).map((test) => test.id));
+  const [selectedRunIds, setSelectedRunIds] = useState<string[]>(initialData.tailorRuns.slice(0, 3).map((run) => run.id));
+  const [status, setStatus] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  const selectedRuns = useMemo(
+    () => data.tailorRuns.filter((run) => selectedRunIds.includes(run.id)),
+    [data.tailorRuns, selectedRunIds],
+  );
+
+  async function refresh() {
+    const next = await requestJson<ResumeTailorHarnessData>("/api/career-wiki/resume-tests");
+    setData(next);
+    return next;
+  }
+
+  function loadPreview() {
+    startTransition(async () => {
+      try {
+        const next = await requestJson<WikiImportPreview>("/api/career-wiki/wiki-import/preview");
+        setPreview(next);
+        setStatus(`预览完成：${next.projects.length} 个项目，${next.skills.length} 个技能。`);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function applyImport(dryRun: boolean) {
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ applied: boolean; projectCount: number; skillCount: number; preview: WikiImportPreview }>(
+          "/api/career-wiki/wiki-import/apply",
+          { dryRun },
+          "POST",
+        );
+        setPreview(result.preview);
+        await refresh();
+        setStatus(result.applied ? `已导入 ${result.projectCount} 个项目、${result.skillCount} 个技能。` : "Dry-run 已完成，未写入数据库。");
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function importBaseline() {
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ baseline: ResumeBaselineView; exportedFile: string | null }>(
+          "/api/career-wiki/resume-baseline",
+          { name: "baseline_resume_2025", source: baselineMarkdown.trim() ? "manual" : "vault", markdown: baselineMarkdown },
+          "POST",
+        );
+        const next = await refresh();
+        setSelectedBaselineId(result.baseline.id);
+        setBaselineMarkdown("");
+        setStatus(result.exportedFile ? `基准简历已导入并导出：${result.exportedFile}` : `基准简历已导入，当前共有 ${next.baselines.length} 个版本。`);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function createJdTest() {
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ jdTest: CareerJdTestView }>("/api/career-wiki/resume-tests", jdDraft, "POST");
+        await refresh();
+        setSelectedJdIds((current) => [...new Set([result.jdTest.id, ...current])]);
+        setJdDraft(emptyJdDraft);
+        setStatus("JD 测试样本已保存。");
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function seedPlaceholders() {
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ jdTests: CareerJdTestView[] }>("/api/career-wiki/resume-tests", { seedPlaceholders: true }, "POST");
+        await refresh();
+        setSelectedJdIds(result.jdTests.map((test) => test.id));
+        setStatus("已创建 3 个占位 JD 模板，需替换为真实 JD 后再用于正式结论。");
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function runTailorTests() {
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ runs: ResumeTailorRunView[] }>(
+          "/api/career-wiki/resume-tests/run",
+          { baselineId: selectedBaselineId || undefined, jdTestIds: selectedJdIds },
+          "POST",
+        );
+        await refresh();
+        setSelectedRunIds(result.runs.map((run) => run.id));
+        setStatus(`已生成 ${result.runs.length} 份定制简历和对比报告。`);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  function exportRuns() {
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ configured: boolean; message: string; files: string[] }>(
+          "/api/career-wiki/resume-tailor/export",
+          { runIds: selectedRunIds },
+          "POST",
+        );
+        setStatus(result.configured ? `${result.message} ${result.files.slice(0, 2).join("；")}` : result.message);
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
+  return (
+    <main className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6 lg:px-8">
+        <aside className="hidden w-64 shrink-0 lg:block">
+          <Link href="/career-wiki/profile" className="mb-5 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="size-4" />
+            返回 Career Wiki
+          </Link>
+          <nav className="rounded-lg border border-line bg-surface p-2">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.section}
+                  href={`/career-wiki/${item.section}`}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-surface-low",
+                    initialSection === item.section && "bg-primary text-primary-foreground hover:bg-primary",
+                  )}
+                >
+                  <Icon className="size-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </aside>
+
+        <section className="min-w-0 flex-1 space-y-5">
+          <header className="border-b border-line pb-4">
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Resume Tailor Test Harness</p>
+            <h1 className="mt-2 text-2xl font-semibold">{sectionTitle(initialSection)}</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+              用 Wiki 项目素材、基准简历和多 JD 测试集验证定制简历质量；不包含自动投递、平台爬虫、登录自动化或 Cookie 管理。
+            </p>
+          </header>
+
+          {!data.vaultConfigured ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              未配置 CAREER_VAULT_PATH。测试可运行；配置后才能导出到 Obsidian。
+            </div>
+          ) : null}
+          {status ? <div className="rounded-lg border border-line bg-surface px-4 py-3 text-sm">{status}</div> : null}
+
+          <div className="lg:hidden">
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {navItems.map((item) => (
+                <Link
+                  key={item.section}
+                  href={`/career-wiki/${item.section}`}
+                  className={cn(
+                    "shrink-0 rounded-md border border-line px-3 py-2 text-sm",
+                    initialSection === item.section && "border-primary bg-primary text-primary-foreground",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {initialSection === "wiki-import" && (
+            <WikiImportPanel preview={preview} isPending={isPending} onPreview={loadPreview} onApply={applyImport} />
+          )}
+          {initialSection === "resume-baseline" && (
+            <BaselinePanel
+              baselines={data.baselines}
+              markdown={baselineMarkdown}
+              setMarkdown={setBaselineMarkdown}
+              onImport={importBaseline}
+              isPending={isPending}
+            />
+          )}
+          {initialSection === "resume-tests" && (
+            <JdTestsPanel
+              tests={data.jdTests}
+              draft={jdDraft}
+              setDraft={setJdDraft}
+              selectedIds={selectedJdIds}
+              setSelectedIds={setSelectedJdIds}
+              onCreate={createJdTest}
+              onSeed={seedPlaceholders}
+              isPending={isPending}
+            />
+          )}
+          {initialSection === "resume-tailor" && (
+            <TailorRunsPanel
+              baselines={data.baselines}
+              tests={data.jdTests}
+              runs={data.tailorRuns}
+              selectedBaselineId={selectedBaselineId}
+              setSelectedBaselineId={setSelectedBaselineId}
+              selectedJdIds={selectedJdIds}
+              setSelectedJdIds={setSelectedJdIds}
+              selectedRunIds={selectedRunIds}
+              setSelectedRunIds={setSelectedRunIds}
+              selectedRuns={selectedRuns}
+              onRun={runTailorTests}
+              onExport={exportRuns}
+              isPending={isPending}
+            />
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function WikiImportPanel({
+  preview,
+  isPending,
+  onPreview,
+  onApply,
+}: {
+  preview: WikiImportPreview | null;
+  isPending: boolean;
+  onPreview: () => void;
+  onApply: (dryRun: boolean) => void;
+}) {
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        <ActionButton onClick={onPreview} disabled={isPending} icon={GitMerge} label="生成预览" />
+        <ActionButton onClick={() => onApply(true)} disabled={isPending} icon={Play} label="Dry-run" variant="secondary" />
+        <ActionButton onClick={() => onApply(false)} disabled={isPending || !preview} icon={Upload} label="确认导入" />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <PreviewList title="项目预览" items={(preview?.projects ?? []).map((project) => `${project.name} · ${project.status} · ${project.sourceFile}`)} />
+        <PreviewList title="技能预览" items={(preview?.skills ?? []).map((skill) => `${skill.name} · ${skill.category} · ${skill.sourceFile}`)} />
+      </div>
+      {preview?.warnings.length ? <PreviewList title="导入警告" items={preview.warnings} /> : null}
+    </section>
+  );
+}
+
+function BaselinePanel({
+  baselines,
+  markdown,
+  setMarkdown,
+  onImport,
+  isPending,
+}: {
+  baselines: ResumeBaselineView[];
+  markdown: string;
+  setMarkdown: (value: string) => void;
+  onImport: () => void;
+  isPending: boolean;
+}) {
+  return (
+    <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
+      <div className="rounded-lg border border-line bg-surface p-4">
+        <label className="text-sm font-medium">Markdown 简历</label>
+        <textarea
+          value={markdown}
+          onChange={(event) => setMarkdown(event.target.value)}
+          rows={18}
+          className="mt-2 min-h-96 w-full rounded-md border border-line bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+          placeholder="粘贴 baseline Markdown；留空时会尝试读取 CareerVault/05_Resume_Versions/baseline_resume_2025.md"
+        />
+        <div className="mt-3">
+          <ActionButton onClick={onImport} disabled={isPending} icon={Upload} label="导入 baseline" />
+        </div>
+      </div>
+      <PreviewList title="已导入版本" items={baselines.map((item) => `${item.name} · ${item.source} · ${new Date(item.updatedAt).toLocaleString()}`)} />
+    </section>
+  );
+}
+
+function JdTestsPanel({
+  tests,
+  draft,
+  setDraft,
+  selectedIds,
+  setSelectedIds,
+  onCreate,
+  onSeed,
+  isPending,
+}: {
+  tests: CareerJdTestView[];
+  draft: JdTestDraft;
+  setDraft: (draft: JdTestDraft) => void;
+  selectedIds: string[];
+  setSelectedIds: (ids: string[]) => void;
+  onCreate: () => void;
+  onSeed: () => void;
+  isPending: boolean;
+}) {
+  return (
+    <section className="grid gap-4 lg:grid-cols-[1fr_420px]">
+      <div className="space-y-3 rounded-lg border border-line bg-surface p-4">
+        <div className="grid gap-3 md:grid-cols-2">
+          <Input label="公司" value={draft.company} onChange={(company) => setDraft({ ...draft, company })} />
+          <Input label="岗位" value={draft.role} onChange={(role) => setDraft({ ...draft, role })} />
+          <Input label="来源" value={draft.source} onChange={(source) => setDraft({ ...draft, source })} />
+          <Input label="目标方向" value={draft.targetDirection} onChange={(targetDirection) => setDraft({ ...draft, targetDirection })} />
+        </div>
+        <Textarea label="JD 内容" value={draft.jdText} onChange={(jdText) => setDraft({ ...draft, jdText })} rows={12} />
+        <div className="flex flex-wrap gap-2">
+          <ActionButton onClick={onCreate} disabled={isPending} icon={Upload} label="保存 JD" />
+          <ActionButton onClick={onSeed} disabled={isPending} icon={FileText} label="创建占位模板" variant="secondary" />
+        </div>
+      </div>
+      <Checklist
+        title="JD 测试集"
+        items={tests}
+        selectedIds={selectedIds}
+        setSelectedIds={setSelectedIds}
+        labelOf={(test) => `${test.company} · ${test.role} · ${test.targetDirection}`}
+      />
+    </section>
+  );
+}
+
+function TailorRunsPanel({
+  baselines,
+  tests,
+  runs,
+  selectedBaselineId,
+  setSelectedBaselineId,
+  selectedJdIds,
+  setSelectedJdIds,
+  selectedRunIds,
+  setSelectedRunIds,
+  selectedRuns,
+  onRun,
+  onExport,
+  isPending,
+}: {
+  baselines: ResumeBaselineView[];
+  tests: CareerJdTestView[];
+  runs: ResumeTailorRunView[];
+  selectedBaselineId: string;
+  setSelectedBaselineId: (id: string) => void;
+  selectedJdIds: string[];
+  setSelectedJdIds: (ids: string[]) => void;
+  selectedRunIds: string[];
+  setSelectedRunIds: (ids: string[]) => void;
+  selectedRuns: ResumeTailorRunView[];
+  onRun: () => void;
+  onExport: () => void;
+  isPending: boolean;
+}) {
+  return (
+    <section className="space-y-4">
+      <div className="rounded-lg border border-line bg-surface p-4">
+        <label className="text-sm font-medium">Baseline</label>
+        <select
+          value={selectedBaselineId}
+          onChange={(event) => setSelectedBaselineId(event.target.value)}
+          className="mt-2 h-10 w-full rounded-md border border-line bg-background px-3 text-sm"
+        >
+          <option value="">使用最近导入版本</option>
+          {baselines.map((baseline) => (
+            <option key={baseline.id} value={baseline.id}>
+              {baseline.name} · {baseline.source}
+            </option>
+          ))}
+        </select>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <ActionButton onClick={onRun} disabled={isPending || selectedJdIds.length === 0} icon={Play} label="运行测试" />
+          <ActionButton onClick={onExport} disabled={isPending || selectedRunIds.length === 0} icon={Download} label="导出选中结果" />
+        </div>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Checklist title="选择 JD" items={tests} selectedIds={selectedJdIds} setSelectedIds={setSelectedJdIds} labelOf={(test) => `${test.company} · ${test.role}`} />
+        <Checklist title="选择导出结果" items={runs} selectedIds={selectedRunIds} setSelectedIds={setSelectedRunIds} labelOf={(run) => `${run.jdAnalysis.company} · ${run.jdAnalysis.role}`} />
+      </div>
+      <div className="grid gap-4">
+        {selectedRuns.map((run) => (
+          <article key={run.id} className="rounded-lg border border-line bg-surface p-4">
+            <h2 className="text-base font-semibold">
+              {run.jdAnalysis.company} · {run.jdAnalysis.role}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Baseline {run.comparisonReport.baselineScore} → Tailored {run.comparisonReport.tailoredScore}
+            </p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <ListBlock title="匹配项目" items={run.selectedProjects} />
+              <ListBlock title="风险提示" items={run.riskNotes} />
+              <ListBlock title="缺失证据" items={run.missingEvidence} />
+              <ListBlock title="下一步" items={run.comparisonReport.nextActions} />
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Checklist<T extends { id: string }>({
+  title,
+  items,
+  selectedIds,
+  setSelectedIds,
+  labelOf,
+}: {
+  title: string;
+  items: T[];
+  selectedIds: string[];
+  setSelectedIds: (ids: string[]) => void;
+  labelOf: (item: T) => string;
+}) {
+  return (
+    <div className="rounded-lg border border-line bg-surface p-4">
+      <h2 className="text-base font-semibold">{title}</h2>
+      <div className="mt-3 space-y-2">
+        {items.length ? (
+          items.map((item) => (
+            <label key={item.id} className="flex gap-2 rounded-md border border-line bg-background px-3 py-2 text-sm">
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(item.id)}
+                onChange={(event) =>
+                  setSelectedIds(event.target.checked ? [...selectedIds, item.id] : selectedIds.filter((id) => id !== item.id))
+                }
+              />
+              <span>{labelOf(item)}</span>
+            </label>
+          ))
+        ) : (
+          <p className="text-sm text-muted-foreground">暂无数据。</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PreviewList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="rounded-lg border border-line bg-surface p-4">
+      <h2 className="text-base font-semibold">{title}</h2>
+      <ListBlock title="" items={items} />
+    </div>
+  );
+}
+
+function ListBlock({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div>
+      {title ? <h3 className="text-sm font-medium">{title}</h3> : null}
+      {items.length ? (
+        <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+          {items.slice(0, 12).map((item, index) => (
+            <li key={`${item}-${index}`}>- {item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-muted-foreground">暂无数据。</p>
+      )}
+    </div>
+  );
+}
+
+function Input({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="text-sm font-medium">
+      {label}
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 h-10 w-full rounded-md border border-line bg-background px-3 text-sm outline-none focus:border-primary"
+      />
+    </label>
+  );
+}
+
+function Textarea({ label, value, onChange, rows }: { label: string; value: string; rows: number; onChange: (value: string) => void }) {
+  return (
+    <label className="block text-sm font-medium">
+      {label}
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        rows={rows}
+        className="mt-1 w-full rounded-md border border-line bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+      />
+    </label>
+  );
+}
+
+function ActionButton({
+  label,
+  icon: Icon,
+  onClick,
+  disabled,
+  variant = "primary",
+}: {
+  label: string;
+  icon: typeof FileText;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: "primary" | "secondary";
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "inline-flex min-h-10 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium disabled:opacity-60",
+        variant === "primary" ? "bg-primary text-primary-foreground" : "border border-line bg-surface hover:bg-surface-low",
+      )}
+    >
+      <Icon className="size-4" />
+      {label}
+    </button>
+  );
+}
+
+async function requestJson<T>(url: string, body?: unknown, method = body ? "POST" : "GET"): Promise<T> {
+  const response = await fetch(url, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof payload.message === "string" ? payload.message : "请求失败");
+  return payload as T;
+}
+
+function sectionTitle(section: ResumeTailorHarnessSection) {
+  return navItems.find((item) => item.section === section)?.label ?? "Resume Tailor";
+}
+
+function formatError(error: unknown) {
+  return error instanceof Error ? error.message : "请求失败";
+}

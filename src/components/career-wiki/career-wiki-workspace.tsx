@@ -204,15 +204,24 @@ export function CareerWikiWorkspace({
                 本模块只处理个人知识库、项目素材、技能矩阵、JD 分析、学习任务和 Obsidian 导出，不包含自动投递或招聘平台自动化。
               </p>
             </div>
-            <button
-              type="button"
-              onClick={exportToObsidian}
-              disabled={isPending}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
-            >
-              <Download className="size-4" />
-              导出到 Obsidian
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/career-wiki/resume-tailor"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-line bg-surface px-4 text-sm font-medium hover:bg-surface-low"
+              >
+                <Sparkles className="size-4" />
+                简历测试
+              </Link>
+              <button
+                type="button"
+                onClick={exportToObsidian}
+                disabled={isPending}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
+              >
+                <Download className="size-4" />
+                导出到 Obsidian
+              </button>
+            </div>
           </header>
 
           {!data.vaultConfigured ? (

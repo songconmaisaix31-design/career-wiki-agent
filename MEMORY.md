@@ -18,3 +18,5 @@
 - 2026-07-08: Demo validation data was backed up to `D:\AI-Workspace\Archive\career-wiki-agent-demo-backup-20260708-152654`, then removed from `prisma\dev.db` Career Wiki tables and `D:\AI-Workspace\CareerVault`.
 - 2026-07-08: `D:\AI-Workspace\CareerVault` was initialized for real usage with profile, project bank, skill matrix, JD analysis, learning plan, resume version, interview prep, and applications templates.
 - 2026-07-08: Next suggested phase is Resume Tailor MVP, using Career Wiki materials to produce resume version suggestions while keeping rule-based fallback.
+- 2026-07-08: Resume Tailor Test Harness uses explicit dry-run/apply for Wiki import, Markdown-only baseline resume import, rule-based resume tailoring, and Obsidian exports to `05_Resume_Versions`, `03_JD_Library`, `04_Learning_Tasks`, and `08_Test_Runs`.
+- 2026-07-08: WIP/prototype/MVP project status must stay visible in generated resume drafts; unsupported JD skills go to `missingEvidence` instead of final resume claims.

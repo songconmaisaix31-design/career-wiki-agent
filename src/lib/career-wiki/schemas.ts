@@ -57,8 +57,36 @@ export const learningTaskUpdateInputSchema = z.object({
   status: z.enum(["todo", "doing", "done"]),
 });
 
+export const wikiImportApplyInputSchema = z.object({
+  dryRun: z.boolean().default(false),
+});
+
+export const resumeBaselineInputSchema = z.object({
+  name: z.string().trim().default("baseline_resume_2025"),
+  source: z.string().trim().default("manual"),
+  markdown: z.string().trim().optional(),
+});
+
+export const jdTestInputSchema = z.object({
+  company: z.string().trim().min(1, "公司不能为空"),
+  role: z.string().trim().min(1, "岗位不能为空"),
+  source: z.string().trim().default("manual"),
+  jdText: z.string().trim().min(20, "JD 内容太短，无法测试"),
+  targetDirection: z.string().trim().min(1, "目标方向不能为空"),
+});
+
+export const tailorRunInputSchema = z.object({
+  baselineId: z.string().trim().min(1).optional(),
+  jdTestIds: z.array(z.string().trim().min(1)).min(1),
+});
+
+export const tailorExportInputSchema = z.object({
+  runIds: z.array(z.string().trim().min(1)).min(1),
+});
+
 export type CareerProfileInput = z.infer<typeof careerProfileInputSchema>;
 export type CareerProjectInput = z.infer<typeof careerProjectInputSchema>;
 export type CareerSkillInput = z.infer<typeof careerSkillInputSchema>;
 export type CareerJdInput = z.infer<typeof careerJdInputSchema>;
-
+export type ResumeBaselineInput = z.infer<typeof resumeBaselineInputSchema>;
+export type CareerJdTestInput = z.infer<typeof jdTestInputSchema>;
