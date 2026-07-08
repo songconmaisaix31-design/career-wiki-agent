@@ -8,6 +8,7 @@ import { getEvidenceItems } from "../evidence";
 import { getProjectFitResults } from "../project-fit/repository";
 import { createCareerExportLog, ensureCareerWikiSchema } from "../repository";
 import { sanitizeWindowsFilename } from "../rules";
+import { assertNoSensitiveContent } from "../security/sensitive-scan";
 import type { CareerEvidenceItemView } from "../types";
 import type { EvidenceDuplicateGroupView, EvidenceReviewItemView, EvidenceReviewSeverity, EvidenceReviewStatus } from "./types";
 
@@ -136,7 +137,9 @@ export async function exportEvidenceQualityReview(jdTestId = "") {
   if (target !== root && !target.startsWith(root + path.sep)) throw new Error("Invalid export path");
   await mkdir(path.dirname(target), { recursive: true });
   const uniquePath = resolveUniquePath(target);
-  await writeFile(uniquePath, renderEvidenceQualityReport(jd, items), "utf8");
+  const markdown = renderEvidenceQualityReport(jd, items);
+  assertNoSensitiveContent(markdown, "Evidence quality review");
+  await writeFile(uniquePath, markdown, "utf8");
   await createCareerExportLog("evidence_quality_review", jdTestId || "all", uniquePath);
   return { configured: true, message: `已导出 Evidence Quality Review：${uniquePath}`, files: [uniquePath] };
 }

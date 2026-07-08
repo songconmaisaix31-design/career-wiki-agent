@@ -8,6 +8,7 @@ import { logCareerAudit } from "../audit/audit-log";
 import { getEvidenceItems } from "../evidence";
 import { createCareerExportLog, ensureCareerWikiSchema } from "../repository";
 import { sanitizeWindowsFilename } from "../rules";
+import { assertNoSensitiveContent } from "../security/sensitive-scan";
 import type { CareerJdTestView, CareerProjectView } from "../types";
 import { applyProjectFitOverride, classifyProjectsForJd } from "./classifier";
 import { renderProjectFitReport } from "./report";
@@ -198,7 +199,9 @@ async function exportProjectFitReport(jdTest: CareerJdTestView, targetDirection:
   if (target !== root && !target.startsWith(root + path.sep)) throw new Error("Invalid export path");
   await mkdir(path.dirname(target), { recursive: true });
   const uniquePath = resolveUniquePath(target);
-  await writeFile(uniquePath, renderProjectFitReport(jdTest, targetDirection, results), "utf8");
+  const markdown = renderProjectFitReport(jdTest, targetDirection, results);
+  assertNoSensitiveContent(markdown, "Project Fit report");
+  await writeFile(uniquePath, markdown, "utf8");
   await createCareerExportLog("project_fit_report", jdTest.id, uniquePath);
   return uniquePath;
 }

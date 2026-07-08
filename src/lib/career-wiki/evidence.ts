@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { logCareerAudit } from "./audit/audit-log";
 import { createCareerExportLog, ensureCareerWikiSchema } from "./repository";
 import { sanitizeWindowsFilename } from "./rules";
+import { assertNoSensitiveContent } from "./security/sensitive-scan";
 import type { EvidenceExportInput, EvidenceInput, EvidenceUpdateInput } from "./schemas";
 import type { CareerEvidenceItemView, CareerEvidenceStatus, CareerEvidenceTargetType, CareerEvidenceType, CareerJdTestView } from "./types";
 
@@ -139,7 +140,9 @@ export async function exportEvidenceReport(input: EvidenceExportInput) {
   if (target !== root && !target.startsWith(root + path.sep)) throw new Error("Invalid export path");
   await mkdir(path.dirname(target), { recursive: true });
   const uniquePath = resolveUniquePath(target);
-  await writeFile(uniquePath, renderEvidenceReport(jdTest, items, targetLabels), "utf8");
+  const markdown = renderEvidenceReport(jdTest, items, targetLabels);
+  assertNoSensitiveContent(markdown, "Evidence report");
+  await writeFile(uniquePath, markdown, "utf8");
   await createCareerExportLog("evidence_report", input.jdTestId || "all", uniquePath);
   return { configured: true, message: `已导出 Evidence Report：${uniquePath}`, files: [uniquePath] };
 }
@@ -229,7 +232,7 @@ function renderEvidenceReport(jdTest: CareerJdTestView | null, items: CareerEvid
 
 function assertSafeEvidence(input: EvidenceInput | EvidenceUpdateInput) {
   const text = [input.title, input.content, input.sourcePath, input.sourceExcerpt].join("\n");
-  if (/api[_ -]?key|cookie|token/i.test(text)) throw new Error("Evidence content may contain API Key / Cookie / token.");
+  assertNoSensitiveContent(text, "Evidence content");
   if (!input.sourcePath.trim() && !input.sourceExcerpt.trim()) throw new Error("每条证据必须保留来源说明。");
 }
 

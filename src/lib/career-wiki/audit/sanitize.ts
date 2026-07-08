@@ -1,3 +1,5 @@
+import { redactSensitiveContent } from "../security/sensitive-scan";
+
 const sensitivePatterns = [
   /api[_ -]?key/i,
   /cookie/i,
@@ -23,7 +25,5 @@ export function sanitizeAuditValue(value: unknown): unknown {
 }
 
 export function sanitizeAuditText(text: string) {
-  return text
-    .replace(/(api[_ -]?key|cookie|token|password|secret|private[_ -]?key|authorization)\s*[:=]\s*\S+/gi, "$1=[REDACTED]")
-    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]");
+  return redactSensitiveContent(text);
 }

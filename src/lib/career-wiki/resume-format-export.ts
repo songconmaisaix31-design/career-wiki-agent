@@ -12,6 +12,7 @@ import { renderResumeHtml } from "./renderers/html-renderer";
 import { renderResumeJson } from "./renderers/json-renderer";
 import { renderResumeMarkdown } from "./renderers/markdown-renderer";
 import { renderResumePdfFallback } from "./renderers/pdf-renderer";
+import { assertNoSensitiveContent } from "./security/sensitive-scan";
 import type { ResumePageSize, ResumeTemplateId } from "./resume-templates/templates";
 
 export type ResumeExportFormat = "markdown" | "json" | "html" | "docx" | "pdf";
@@ -85,6 +86,7 @@ export async function exportResumeVersionFormat({
 }
 
 async function writeText(vaultPath: string, fileName: string, content: string, entityType: string, entityId: string) {
+  assertNoSensitiveContent(content, entityType, { includeUnsupportedClaims: entityType.startsWith("final_resume") && !entityType.includes("risk") && !entityType.includes("evidence") });
   const filePath = resolveVaultFile(vaultPath, fileName);
   await mkdir(path.dirname(filePath), { recursive: true });
   const uniquePath = resolveUniquePath(filePath);

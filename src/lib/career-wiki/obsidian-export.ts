@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { createCareerExportLog, getCareerWikiData } from "./repository";
 import { sanitizeWindowsFilename } from "./rules";
+import { assertNoSensitiveContent } from "./security/sensitive-scan";
 import type {
   CareerJdAnalysisView,
   CareerLearningTaskView,
@@ -125,6 +126,7 @@ async function writeMarkdown({
   entityId: string;
 }) {
   const targetPath = resolveInsideVault(vaultPath, relativePath);
+  assertNoSensitiveContent(markdown, entityType);
   await mkdir(path.dirname(targetPath), { recursive: true });
   const uniquePath = resolveUniqueMarkdownPath(targetPath);
   await writeFile(uniquePath, markdown, "utf8");
@@ -294,4 +296,3 @@ function formatTimestamp(date: Date) {
     pad(date.getSeconds()),
   ].join("");
 }
-

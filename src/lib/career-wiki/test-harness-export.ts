@@ -7,6 +7,7 @@ import { logCareerAudit } from "./audit/audit-log";
 import { createCareerExportLog } from "./repository";
 import { sanitizeWindowsFilename } from "./rules";
 import { assertChecklistPassed, buildExportChecklist, versionNumberFromName } from "./resume-version";
+import { assertNoSensitiveContent } from "./security/sensitive-scan";
 import { buildLearningTasksForJd } from "./resume-tailor";
 import { ensureResumeTailorSchema } from "./test-harness-repository";
 import type { CareerJdAnalysisView, CareerResumeVersionView, CareerSkillView, ResumeEvidenceItem, ResumeTailorRunView } from "./types";
@@ -123,6 +124,7 @@ export async function exportApprovedResumeVersion(versionId: string) {
 }
 
 async function writeMarkdown(vaultPath: string, relativePath: string[], markdown: string, entityType: string, entityId: string) {
+  assertNoSensitiveContent(markdown, entityType, { includeUnsupportedClaims: entityType === "final_resume" });
   const root = path.resolve(vaultPath);
   const target = path.resolve(root, ...relativePath);
   if (target !== root && !target.startsWith(root + path.sep)) throw new Error("Invalid export path");

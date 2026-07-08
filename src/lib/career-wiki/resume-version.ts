@@ -7,6 +7,7 @@ import type {
   ResumeExportChecklistItem,
   ResumeTailorRunView,
 } from "./types";
+import { findSensitiveContentIssues } from "./security/sensitive-scan";
 
 const rejectedEvidenceSources = new Set(["inferred_without_evidence", "missing_evidence", "llm_guess", "unknown"]);
 
@@ -207,8 +208,7 @@ function isEmptyBullet(text: string) {
 }
 
 function hasUnsafeText(text: string) {
-  if (/api[_ -]?key|cookie|token/i.test(text)) return true;
-  if (/production-ready/i.test(text)) return true;
+  if (findSensitiveContentIssues(text, { includeUnsupportedClaims: true }).length) return true;
   if (/证据尚需确认|入口尚需确认|unknown|not approved|not completed or verified|not found|production_ready|needs.*confirmation/i.test(text)) return true;
   if (hasUnsafeReviewFlowLine(text)) return true;
   return false;
