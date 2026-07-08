@@ -188,6 +188,15 @@ export const workflowTransitionInputSchema = z.object({
   reason: z.string().trim().optional(),
 });
 
+export const evidenceReviewQueryInputSchema = z.object({
+  jdTestId: z.string().trim().default(""),
+});
+
+export const evidenceReviewActionInputSchema = z.object({
+  id: z.string().trim().min(1),
+  status: z.enum(["open", "resolved", "accepted_risk", "ignored"]),
+});
+
 export type CareerProfileInput = z.infer<typeof careerProfileInputSchema>;
 export type CareerProjectInput = z.infer<typeof careerProjectInputSchema>;
 export type CareerSkillInput = z.infer<typeof careerSkillInputSchema>;
@@ -206,3 +215,5 @@ export type EvidenceDeleteInput = z.infer<typeof evidenceDeleteInputSchema>;
 export type EvidenceExportInput = z.infer<typeof evidenceExportInputSchema>;
 export type WorkflowStartInput = z.infer<typeof workflowStartInputSchema>;
 export type WorkflowTransitionInput = z.infer<typeof workflowTransitionInputSchema>;
+export type EvidenceReviewQueryInput = z.infer<typeof evidenceReviewQueryInputSchema>;
+export type EvidenceReviewActionInput = z.infer<typeof evidenceReviewActionInputSchema>;

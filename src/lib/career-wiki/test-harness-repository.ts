@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { logCareerAudit } from "./audit/audit-log";
 import { buildWikiImportPreview, mergeStringList } from "./wiki-importer";
 import { getEvidenceItems } from "./evidence";
+import { assertNoBlockingEvidenceReview } from "./evidence-review/repository";
 import { assertChecklistPassed, buildEvidenceSummary, buildExportChecklist, buildResumeDiff } from "./resume-version";
 import { createTailorRunDraft, parseBaselineMarkdown } from "./resume-tailor";
 import { getProjectFitResults } from "./project-fit/repository";
@@ -294,6 +295,7 @@ export async function updateCareerResumeVersionStatus(id: string, status: "draft
   if (!existing) throw new Error("Resume version not found");
   const view = toCareerResumeVersionView(existing);
   if (status === "approved") {
+    await assertNoBlockingEvidenceReview(view.jdTestId);
     assertChecklistPassed(
       buildExportChecklist({
         baselineId: view.baselineId,
