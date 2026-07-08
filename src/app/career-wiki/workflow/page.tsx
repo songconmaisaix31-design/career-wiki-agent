@@ -1,57 +1,50 @@
 import Link from "next/link";
+import { Activity, Database } from "lucide-react";
 
-import { listWorkflowRuns } from "@/lib/career-wiki/workflow/repository";
+import { CareerWikiAppShell } from "@/components/career-wiki/app-shell";
+import { labelForWorkflowState } from "@/components/career-wiki/navigation";
+import { WorkflowBoard } from "@/components/career-wiki/workflow-board";
+import { Button } from "@/components/ui/button";
+import { getCareerWikiHealth } from "@/lib/career-wiki/health";
+import { getWorkflowRun, listWorkflowRuns } from "@/lib/career-wiki/workflow/repository";
 
 export const dynamic = "force-dynamic";
 
-export default async function CareerWorkflowPage() {
-  const workflows = await listWorkflowRuns();
-  const current = workflows[0];
+export default async function CareerWorkflowPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string }>;
+}) {
+  const query = await searchParams;
+  const [workflows, health] = await Promise.all([listWorkflowRuns(), getCareerWikiHealth()]);
+  const selectedId = query.id ?? workflows[0]?.id ?? "";
+  const detail = selectedId ? await getWorkflowRun(selectedId).catch(() => null) : null;
+  const selectedWorkflow = detail?.run ?? workflows[0] ?? null;
+  const events = detail?.events ?? [];
 
   return (
-    <main className="min-h-screen bg-background px-6 py-8 text-foreground">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
-          <div>
-            <Link href="/career-wiki/profile" className="text-sm text-muted-foreground hover:text-foreground">
-              Back to Career Wiki
-            </Link>
-            <h1 className="mt-2 text-2xl font-semibold">Career Workflow</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Local review state for JD, Project Fit, evidence, resume approval, and export.</p>
-          </div>
-          <Link href="/career-wiki/dashboard" className="rounded-md border border-line px-3 py-2 text-sm hover:bg-surface-low">
-            Operation Dashboard
-          </Link>
-        </header>
-
-        {current ? (
-          <section className="grid gap-4 lg:grid-cols-[320px_1fr]">
-            <article className="rounded-lg border border-line bg-surface p-4">
-              <h2 className="text-base font-semibold">{current.name}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">State: {current.currentState}</p>
-              <p className="text-sm text-muted-foreground">Status: {current.status}</p>
-              <p className="text-sm text-muted-foreground">Updated: {current.updatedAt}</p>
-            </article>
-            <article className="rounded-lg border border-line bg-surface p-4">
-              <h2 className="text-base font-semibold">Checklist</h2>
-              <ul className="mt-3 space-y-2 text-sm">
-                {current.checklist.map((item) => (
-                  <li key={item.key} className="rounded-md border border-line bg-background p-3">
-                    <span className={item.passed ? "text-green-600" : "text-red-600"}>{item.passed ? "PASS" : "BLOCK"}</span>
-                    <span className="ml-2 font-medium">{item.label}</span>
-                    {item.reason ? <p className="mt-1 text-muted-foreground">{item.reason}</p> : null}
-                  </li>
-                ))}
-              </ul>
-            </article>
-          </section>
-        ) : (
-          <section className="rounded-lg border border-line bg-surface p-6">
-            <h2 className="text-base font-semibold">No workflow run yet</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Start one through `POST /api/career-wiki/workflows/start` after importing a JD.</p>
-          </section>
-        )}
-      </div>
-    </main>
+    <CareerWikiAppShell
+      active="workflow"
+      title="求职流程"
+      description="把 JD 导入、项目匹配、证据审核、简历生成、人工批准和导出串成可审计的状态机。"
+      statusItems={[
+        { label: "系统健康", value: health.status === "pass" ? "通过" : health.status === "warn" ? "注意" : "失败", status: health.status, icon: Activity },
+        { label: "Workflow 数量", value: String(workflows.length) },
+        { label: "当前阶段", value: selectedWorkflow ? labelForWorkflowState(selectedWorkflow.currentState) : "未启动", status: selectedWorkflow?.status ?? "warn" },
+        { label: "CareerVault", value: health.checks.find((check) => check.key === "vault-configured")?.status === "pass" ? "已配置" : "待配置", status: health.checks.find((check) => check.key === "vault-configured")?.status ?? "warn", icon: Database },
+      ]}
+      actions={
+        <>
+          <Button variant="outline" size="sm" render={<Link href="/career-wiki/jd-import" />}>
+            导入 JD
+          </Button>
+          <Button size="sm" render={<Link href="/career-wiki/project-fit" />}>
+            进入项目匹配
+          </Button>
+        </>
+      }
+    >
+      <WorkflowBoard workflows={workflows} selectedWorkflow={selectedWorkflow} events={events} />
+    </CareerWikiAppShell>
   );
 }

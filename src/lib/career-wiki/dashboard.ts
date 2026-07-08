@@ -18,7 +18,10 @@ export async function getCareerWikiDashboard() {
   ]);
 
   return {
-    counts,
+    counts: {
+      ...counts,
+      openMissingEvidence: reviewItems.filter((item) => item.status === "open").length,
+    },
     workflow: workflows[0] ?? null,
     evidenceReview: {
       total: reviewItems.length,
@@ -39,6 +42,7 @@ async function getCounts() {
     jdTests,
     fitResults,
     evidenceItems,
+    verifiedEvidence,
     resumeVersions,
     approvedVersions,
     exportedVersions,
@@ -50,6 +54,7 @@ async function getCounts() {
     count(`SELECT COUNT(*) AS count FROM "CareerJdTest"`),
     count(`SELECT COUNT(*) AS count FROM "CareerProjectFitResult"`),
     count(`SELECT COUNT(*) AS count FROM "CareerEvidenceItem"`),
+    count(`SELECT COUNT(*) AS count FROM "CareerEvidenceItem" WHERE "status" = 'verified'`),
     count(`SELECT COUNT(*) AS count FROM "CareerResumeVersion"`),
     count(`SELECT COUNT(*) AS count FROM "CareerResumeVersion" WHERE "status" = 'approved'`),
     count(`SELECT COUNT(*) AS count FROM "CareerResumeVersion" WHERE "status" = 'exported'`),
@@ -63,6 +68,7 @@ async function getCounts() {
     jdTests,
     fitResults,
     evidenceItems,
+    verifiedEvidence,
     resumeVersions,
     approvedVersions,
     exportedVersions,

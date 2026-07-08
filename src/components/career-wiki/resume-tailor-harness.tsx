@@ -1,9 +1,11 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { ArrowLeft, Download, FileText, GitMerge, ListChecks, Play, Upload } from "lucide-react";
+import { Download, FileText, GitMerge, ListChecks, Play, Upload } from "lucide-react";
 
+import { CareerWikiAppShell } from "@/components/career-wiki/app-shell";
+import type { CareerWikiRouteKey } from "@/components/career-wiki/navigation";
 import type {
   CareerEvidenceItemView,
   CareerEvidenceStatus,
@@ -52,10 +54,21 @@ const navItems: Array<{ section: ResumeTailorHarnessSection; label: string; icon
   { section: "resume-baseline", label: "基准简历", icon: FileText },
   { section: "resume-tests", label: "JD 测试集", icon: ListChecks },
   { section: "project-fit", label: "项目匹配", icon: GitMerge },
-  { section: "evidence-editor", label: "证据编辑", icon: FileText },
-  { section: "resume-tailor", label: "简历测试", icon: Play },
-  { section: "resume-versions", label: "简历版本", icon: Download },
+  { section: "evidence-editor", label: "证据中心", icon: FileText },
+  { section: "resume-tailor", label: "简历工作台", icon: Play },
+  { section: "resume-versions", label: "导出与版本", icon: Download },
 ];
+
+const sectionDescriptions: Record<ResumeTailorHarnessSection, string> = {
+  "wiki-import": "从本地 Wiki 导入项目和技能，先预览再写入，避免误覆盖真实素材。",
+  "jd-import": "上传或粘贴 JD / 简历文档，解析后确认公司、岗位、来源和方向再保存。",
+  "resume-baseline": "导入 Markdown 基准简历，作为后续定制简历对比和 diff 的来源。",
+  "resume-tests": "维护多 JD 测试集，用于验证定制简历生成质量。",
+  "project-fit": "按 JD 解释项目匹配程度、证据强度、风险和推荐用法。",
+  "evidence-editor": "为项目、技能和 bullet 补充证据，并区分 draft / verified / rejected。",
+  "resume-tailor": "按 baseline、JD、项目匹配、证据审核、diff、checklist 和人工批准推进。",
+  "resume-versions": "查看简历版本，选择模板预览，并导出 approved / exported 版本。",
+};
 
 const emptyJdDraft: JdTestDraft = {
   company: "",
@@ -475,188 +488,169 @@ export function ResumeTailorHarness({
     });
   }
 
+  const active = initialSection as CareerWikiRouteKey;
+
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6 lg:px-8">
-        <aside className="hidden w-64 shrink-0 lg:block">
-          <Link href="/career-wiki/profile" className="mb-5 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="size-4" />
-            返回 Career Wiki
+    <CareerWikiAppShell
+      active={active}
+      title={sectionTitle(initialSection)}
+      description={sectionDescriptions[initialSection]}
+      statusItems={[
+        { label: "CareerVault", value: data.vaultConfigured ? "已配置" : "待配置", status: data.vaultConfigured ? "pass" : "warn" },
+        { label: "JD", value: String(data.jdTests.length) },
+        { label: "项目", value: String(data.projects.length) },
+        { label: "简历版本", value: String(data.resumeVersions.length) },
+      ]}
+      actions={
+        <>
+          <Link
+            href="/career-wiki/project-fit"
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-medium hover:bg-surface-low"
+          >
+            <GitMerge className="size-4" />
+            项目匹配
           </Link>
-          <nav className="rounded-lg border border-line bg-surface p-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.section}
-                  href={`/career-wiki/${item.section}`}
-                  className={cn(
-                    "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-surface-low",
-                    initialSection === item.section && "bg-primary text-primary-foreground hover:bg-primary",
-                  )}
-                >
-                  <Icon className="size-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </aside>
+          <Link
+            href="/career-wiki/resume-tailor"
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-medium hover:bg-surface-low"
+          >
+            <Play className="size-4" />
+            简历工作台
+          </Link>
+          <Link
+            href="/career-wiki/resume-versions"
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            <Download className="size-4" />
+            导出与版本
+          </Link>
+        </>
+      }
+    >
+      {!data.vaultConfigured ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+          未配置 CAREER_VAULT_PATH。测试和本地审核可继续运行；配置后才能导出到 Obsidian。
+        </div>
+      ) : null}
+      {status ? <div className="rounded-lg border border-line bg-surface px-4 py-3 text-sm leading-6">{status}</div> : null}
 
-        <section className="min-w-0 flex-1 space-y-5">
-          <header className="border-b border-line pb-4">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Resume Tailor Test Harness</p>
-            <h1 className="mt-2 text-2xl font-semibold">{sectionTitle(initialSection)}</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              用 Wiki 项目素材、基准简历和多 JD 测试集验证定制简历质量；不包含自动投递、平台爬虫、登录自动化或 Cookie 管理。
-            </p>
-          </header>
-
-          {!data.vaultConfigured ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              未配置 CAREER_VAULT_PATH。测试可运行；配置后才能导出到 Obsidian。
-            </div>
-          ) : null}
-          {status ? <div className="rounded-lg border border-line bg-surface px-4 py-3 text-sm">{status}</div> : null}
-
-          <div className="lg:hidden">
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.section}
-                  href={`/career-wiki/${item.section}`}
-                  className={cn(
-                    "shrink-0 rounded-md border border-line px-3 py-2 text-sm",
-                    initialSection === item.section && "border-primary bg-primary text-primary-foreground",
-                  )}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          {initialSection === "wiki-import" && (
-            <WikiImportPanel preview={preview} isPending={isPending} onPreview={loadPreview} onApply={applyImport} />
-          )}
-          {initialSection === "jd-import" && (
-            <DocumentIngestPanel
-              purpose={ingestPurpose}
-              setPurpose={setIngestPurpose}
-              pastedText={pastedDocument}
-              setPastedText={setPastedDocument}
-              parsed={parsedDocument}
-              importMeta={importMeta}
-              setImportMeta={setImportMeta}
-              onUpload={ingestUploadedDocument}
-              onParseText={ingestPastedDocument}
-              onConfirm={confirmParsedDocument}
-              isPending={isPending}
-            />
-          )}
-          {initialSection === "resume-baseline" && (
-            <BaselinePanel
-              baselines={data.baselines}
-              markdown={baselineMarkdown}
-              setMarkdown={setBaselineMarkdown}
-              onImport={importBaseline}
-              isPending={isPending}
-            />
-          )}
-          {initialSection === "resume-tests" && (
-            <JdTestsPanel
-              tests={data.jdTests}
-              draft={jdDraft}
-              setDraft={setJdDraft}
-              selectedIds={selectedJdIds}
-              setSelectedIds={setSelectedJdIds}
-              onCreate={createJdTest}
-              onSeed={seedPlaceholders}
-              isPending={isPending}
-            />
-          )}
-          {initialSection === "project-fit" && (
-            <ProjectFitPanel
-              tests={data.jdTests}
-              results={projectFitResults}
-              selectedJdId={selectedProjectFitJdId}
-              setSelectedJdId={(id) => {
-                setSelectedProjectFitJdId(id);
-                setProjectFitResults([]);
-              }}
-              overrides={projectFitOverrides}
-              setOverrides={setProjectFitOverrides}
-              onLoad={loadProjectFitResults}
-              onRun={runProjectFit}
-              onOverride={overrideProjectFit}
-              isPending={isPending}
-            />
-          )}
-          {initialSection === "evidence-editor" && (
-            <EvidenceEditorPanel
-              tests={data.jdTests}
-              projects={data.projects}
-              skills={data.skills}
-              evidenceItems={evidenceItems}
-              projectFitResults={projectFitResults}
-              draft={evidenceDraft}
-              setDraft={setEvidenceDraft}
-              filter={evidenceFilter}
-              setFilter={setEvidenceFilter}
-              onLoad={loadEvidenceItems}
-              onLoadProjectFit={() => loadProjectFitResults(evidenceFilter.jdTestId)}
-              onSave={saveEvidence}
-              onDelete={deleteEvidence}
-              onExport={exportEvidence}
-              isPending={isPending}
-            />
-          )}
-          {initialSection === "resume-tailor" && (
-            <TailorRunsPanel
-              baselines={data.baselines}
-              tests={data.jdTests}
-              projects={data.projects}
-              versions={data.resumeVersions}
-              selectedBaselineId={selectedBaselineId}
-              setSelectedBaselineId={setSelectedBaselineId}
-              selectedJdIds={selectedJdIds}
-              setSelectedJdIds={setSelectedJdIds}
-              selectedProjectIds={selectedProjectIds}
-              setSelectedProjectIds={setSelectedProjectIds}
-              selectedRunIds={selectedRunIds}
-              setSelectedRunIds={setSelectedRunIds}
-              selectedRuns={selectedRuns}
-              selectedVersion={selectedVersion}
-              onRun={runTailorTests}
-              onSaveDraft={saveDraftVersion}
-              onApprove={(id) => updateVersionStatus(id, "approved")}
-              onExport={exportVersion}
-              isPending={isPending}
-            />
-          )}
-          {initialSection === "resume-versions" && (
-            <ResumeVersionsPanel
-              versions={data.resumeVersions}
-              selectedVersionId={selectedVersionId}
-              setSelectedVersionId={setSelectedVersionId}
-              onApprove={(id) => updateVersionStatus(id, "approved")}
-              onArchive={(id) => updateVersionStatus(id, "archived")}
-              onExport={exportVersion}
-              onRender={renderVersion}
-              onExportFormat={exportVersionFormat}
-              renderPreview={renderPreview}
-              selectedTemplate={selectedTemplate}
-              setSelectedTemplate={setSelectedTemplate}
-              isPending={isPending}
-            />
-          )}
-        </section>
-      </div>
-    </main>
+      {initialSection === "wiki-import" && (
+        <WikiImportPanel preview={preview} isPending={isPending} onPreview={loadPreview} onApply={applyImport} />
+      )}
+      {initialSection === "jd-import" && (
+        <DocumentIngestPanel
+          purpose={ingestPurpose}
+          setPurpose={setIngestPurpose}
+          pastedText={pastedDocument}
+          setPastedText={setPastedDocument}
+          parsed={parsedDocument}
+          importMeta={importMeta}
+          setImportMeta={setImportMeta}
+          onUpload={ingestUploadedDocument}
+          onParseText={ingestPastedDocument}
+          onConfirm={confirmParsedDocument}
+          isPending={isPending}
+        />
+      )}
+      {initialSection === "resume-baseline" && (
+        <BaselinePanel
+          baselines={data.baselines}
+          markdown={baselineMarkdown}
+          setMarkdown={setBaselineMarkdown}
+          onImport={importBaseline}
+          isPending={isPending}
+        />
+      )}
+      {initialSection === "resume-tests" && (
+        <JdTestsPanel
+          tests={data.jdTests}
+          draft={jdDraft}
+          setDraft={setJdDraft}
+          selectedIds={selectedJdIds}
+          setSelectedIds={setSelectedJdIds}
+          onCreate={createJdTest}
+          onSeed={seedPlaceholders}
+          isPending={isPending}
+        />
+      )}
+      {initialSection === "project-fit" && (
+        <ProjectFitPanel
+          tests={data.jdTests}
+          results={projectFitResults}
+          selectedJdId={selectedProjectFitJdId}
+          setSelectedJdId={(id) => {
+            setSelectedProjectFitJdId(id);
+            setProjectFitResults([]);
+          }}
+          overrides={projectFitOverrides}
+          setOverrides={setProjectFitOverrides}
+          onLoad={loadProjectFitResults}
+          onRun={runProjectFit}
+          onOverride={overrideProjectFit}
+          isPending={isPending}
+        />
+      )}
+      {initialSection === "evidence-editor" && (
+        <EvidenceEditorPanel
+          tests={data.jdTests}
+          projects={data.projects}
+          skills={data.skills}
+          evidenceItems={evidenceItems}
+          projectFitResults={projectFitResults}
+          draft={evidenceDraft}
+          setDraft={setEvidenceDraft}
+          filter={evidenceFilter}
+          setFilter={setEvidenceFilter}
+          onLoad={loadEvidenceItems}
+          onLoadProjectFit={() => loadProjectFitResults(evidenceFilter.jdTestId)}
+          onSave={saveEvidence}
+          onDelete={deleteEvidence}
+          onExport={exportEvidence}
+          isPending={isPending}
+        />
+      )}
+      {initialSection === "resume-tailor" && (
+        <TailorRunsPanel
+          baselines={data.baselines}
+          tests={data.jdTests}
+          projects={data.projects}
+          versions={data.resumeVersions}
+          selectedBaselineId={selectedBaselineId}
+          setSelectedBaselineId={setSelectedBaselineId}
+          selectedJdIds={selectedJdIds}
+          setSelectedJdIds={setSelectedJdIds}
+          selectedProjectIds={selectedProjectIds}
+          setSelectedProjectIds={setSelectedProjectIds}
+          selectedRunIds={selectedRunIds}
+          setSelectedRunIds={setSelectedRunIds}
+          selectedRuns={selectedRuns}
+          selectedVersion={selectedVersion}
+          onRun={runTailorTests}
+          onSaveDraft={saveDraftVersion}
+          onApprove={(id) => updateVersionStatus(id, "approved")}
+          onExport={exportVersion}
+          isPending={isPending}
+        />
+      )}
+      {initialSection === "resume-versions" && (
+        <ResumeVersionsPanel
+          versions={data.resumeVersions}
+          selectedVersionId={selectedVersionId}
+          setSelectedVersionId={setSelectedVersionId}
+          onApprove={(id) => updateVersionStatus(id, "approved")}
+          onArchive={(id) => updateVersionStatus(id, "archived")}
+          onExport={exportVersion}
+          onRender={renderVersion}
+          onExportFormat={exportVersionFormat}
+          renderPreview={renderPreview}
+          selectedTemplate={selectedTemplate}
+          setSelectedTemplate={setSelectedTemplate}
+          isPending={isPending}
+        />
+      )}
+    </CareerWikiAppShell>
   );
-}
-
-function WikiImportPanel({
+}function WikiImportPanel({
   preview,
   isPending,
   onPreview,

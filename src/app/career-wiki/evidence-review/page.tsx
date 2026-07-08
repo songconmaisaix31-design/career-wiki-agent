@@ -1,48 +1,48 @@
 import Link from "next/link";
+import { Download, GitMerge, ShieldCheck } from "lucide-react";
 
+import { CareerWikiAppShell } from "@/components/career-wiki/app-shell";
+import { EvidenceReviewQueue } from "@/components/career-wiki/evidence-review-queue";
+import { Button } from "@/components/ui/button";
 import { listEvidenceReviewItems } from "@/lib/career-wiki/evidence-review/repository";
+import { getCareerWikiHealth } from "@/lib/career-wiki/health";
 
 export const dynamic = "force-dynamic";
 
 export default async function EvidenceReviewPage() {
-  const items = await listEvidenceReviewItems();
+  const [items, health] = await Promise.all([listEvidenceReviewItems(), getCareerWikiHealth()]);
   const openHigh = items.filter((item) => item.status === "open" && item.severity === "high").length;
+  const openItems = items.filter((item) => item.status === "open").length;
 
   return (
-    <main className="min-h-screen bg-background px-6 py-8 text-foreground">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
-          <div>
-            <Link href="/career-wiki/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-              Back to Dashboard
-            </Link>
-            <h1 className="mt-2 text-2xl font-semibold">Evidence Quality Review</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Review weak, duplicate, draft, and insufficient evidence before resume approval.</p>
-          </div>
-          <div className="rounded-md border border-line px-3 py-2 text-sm">
-            Open high severity: <span className={openHigh ? "text-red-600" : "text-green-600"}>{openHigh}</span>
-          </div>
-        </header>
-
-        <section className="grid gap-3">
-          {items.length ? items.map((item) => (
-            <article key={item.id} className="rounded-lg border border-line bg-surface p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-base font-semibold">{item.title}</h2>
-                <span className="rounded-md border border-line px-2 py-1 text-xs">{item.severity} / {item.status}</span>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">{item.issueType} - {item.targetType} / {item.targetId}</p>
-              <p className="mt-2 text-sm">{item.detail}</p>
-              <p className="mt-2 text-sm text-muted-foreground">Action: {item.recommendedAction}</p>
-            </article>
-          )) : (
-            <article className="rounded-lg border border-line bg-surface p-6">
-              <h2 className="text-base font-semibold">No review items yet</h2>
-              <p className="mt-2 text-sm text-muted-foreground">Run `POST /api/career-wiki/evidence-review/run` after Project Fit and evidence edits.</p>
-            </article>
-          )}
-        </section>
-      </div>
-    </main>
+    <CareerWikiAppShell
+      active="evidence-review"
+      title="证据审核"
+      description="把缺证据、草稿证据、重复证据和弱来源问题整理成可处理队列；高风险问题会阻断简历批准。"
+      statusItems={[
+        { label: "系统健康", value: health.status === "pass" ? "通过" : health.status === "warn" ? "注意" : "失败", status: health.status },
+        { label: "待处理", value: String(openItems), status: openItems > 0 ? "warn" : "pass" },
+        { label: "高风险", value: String(openHigh), status: openHigh > 0 ? "blocked" : "pass" },
+        { label: "总审核项", value: String(items.length) },
+      ]}
+      actions={
+        <>
+          <Button variant="outline" size="sm" render={<Link href="/career-wiki/project-fit" />}>
+            <GitMerge className="size-4" />
+            重新运行 Project Fit
+          </Button>
+          <Button variant="outline" size="sm" render={<Link href="/api/career-wiki/evidence-review/export" />}>
+            <Download className="size-4" />
+            导出审核报告
+          </Button>
+          <Button size="sm" render={<Link href="/career-wiki/evidence-editor" />}>
+            <ShieldCheck className="size-4" />
+            补充证据
+          </Button>
+        </>
+      }
+    >
+      <EvidenceReviewQueue items={items} />
+    </CareerWikiAppShell>
   );
 }

@@ -1,43 +1,43 @@
 import Link from "next/link";
+import { ScrollText, ShieldCheck } from "lucide-react";
 
+import { AuditLogViewer } from "@/components/career-wiki/audit-log-viewer";
+import { CareerWikiAppShell } from "@/components/career-wiki/app-shell";
+import { Button } from "@/components/ui/button";
 import { listAuditLogs } from "@/lib/career-wiki/audit/audit-log";
+import { getCareerWikiHealth } from "@/lib/career-wiki/health";
 
 export const dynamic = "force-dynamic";
 
 export default async function CareerAuditPage() {
-  const auditLogs = await listAuditLogs(100);
+  const [auditLogs, health] = await Promise.all([listAuditLogs(150), getCareerWikiHealth()]);
+  const workflowLogs = auditLogs.filter((log) => log.action.includes("workflow")).length;
+  const blockedLogs = auditLogs.filter((log) => log.action.includes("blocked") || log.summary.toLowerCase().includes("block")).length;
 
   return (
-    <main className="min-h-screen bg-background px-6 py-8 text-foreground">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
-          <div>
-            <Link href="/career-wiki/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-              Back to Dashboard
-            </Link>
-            <h1 className="mt-2 text-2xl font-semibold">Career Audit Log</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Critical local workflow actions with sanitized before / after context.</p>
-          </div>
-        </header>
-
-        <section className="grid gap-3">
-          {auditLogs.length ? auditLogs.map((log) => (
-            <article key={log.id} className="rounded-lg border border-line bg-surface p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-base font-semibold">{log.action}</h2>
-                <span className="text-xs text-muted-foreground">{log.createdAt}</span>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">{log.entityType} / {log.entityId}</p>
-              <p className="mt-2 text-sm">{log.summary}</p>
-            </article>
-          )) : (
-            <article className="rounded-lg border border-line bg-surface p-6">
-              <h2 className="text-base font-semibold">No audit logs yet</h2>
-              <p className="mt-2 text-sm text-muted-foreground">Logs will appear after evidence edits, Project Fit runs, resume approvals, and exports.</p>
-            </article>
-          )}
-        </section>
-      </div>
-    </main>
+    <CareerWikiAppShell
+      active="audit"
+      title="审计日志"
+      description="查看关键动作、状态变化、原因和前后摘要。普通页面不提供删除审计日志能力。"
+      statusItems={[
+        { label: "系统健康", value: health.status === "pass" ? "通过" : health.status === "warn" ? "注意" : "失败", status: health.status },
+        { label: "日志数量", value: String(auditLogs.length), icon: ScrollText },
+        { label: "Workflow 事件", value: String(workflowLogs) },
+        { label: "阻断相关", value: String(blockedLogs), status: blockedLogs > 0 ? "warn" : "pass" },
+      ]}
+      actions={
+        <>
+          <Button variant="outline" size="sm" render={<Link href="/career-wiki/workflow" />}>
+            查看流程
+          </Button>
+          <Button size="sm" render={<Link href="/career-wiki/evidence-review" />}>
+            <ShieldCheck className="size-4" />
+            证据审核
+          </Button>
+        </>
+      }
+    >
+      <AuditLogViewer logs={auditLogs} />
+    </CareerWikiAppShell>
   );
 }

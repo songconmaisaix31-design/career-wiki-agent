@@ -1,10 +1,12 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useMemo, useState, useTransition } from "react";
-import { ArrowLeft, BookOpen, CheckCircle2, Download, Edit3, FolderKanban, GraduationCap, ListChecks, Sparkles, Upload } from "lucide-react";
+import { CheckCircle2, Download, Edit3, Sparkles, Upload } from "lucide-react";
 
+import { CareerWikiAppShell } from "@/components/career-wiki/app-shell";
+import type { CareerWikiRouteKey } from "@/components/career-wiki/navigation";
 import type {
   CareerJdAnalysisView,
   CareerLearningTaskStatus,
@@ -22,13 +24,28 @@ type ProjectDraft = Omit<CareerProjectView, "id" | "updatedAt"> & { id?: string 
 type SkillDraft = Omit<CareerSkillView, "id" | "updatedAt"> & { id?: string };
 type JdDraft = { company: string; role: string; source: string; jdText: string };
 
-const navItems: Array<{ section: CareerWikiSection; label: string; icon: typeof BookOpen }> = [
-  { section: "profile", label: "个人画像", icon: BookOpen },
-  { section: "projects", label: "项目素材库", icon: FolderKanban },
-  { section: "skills", label: "技能矩阵", icon: GraduationCap },
-  { section: "jd-analyzer", label: "JD 分析", icon: Sparkles },
-  { section: "learning-tasks", label: "学习任务", icon: ListChecks },
-];
+const sectionMeta: Record<CareerWikiSection, { title: string; description: string }> = {
+  profile: {
+    title: "个人画像",
+    description: "维护目标岗位、教育背景、当前状态、优势和短板，作为简历生成的基础上下文。",
+  },
+  projects: {
+    title: "项目素材库",
+    description: "沉淀项目状态、技术栈、亮点、简历 bullet 和面试故事；不把半成品夸大为生产级。",
+  },
+  skills: {
+    title: "技能矩阵",
+    description: "按分类维护技能等级、证据和学习优先级，为 JD gap 和学习计划提供依据。",
+  },
+  "jd-analyzer": {
+    title: "JD 分析",
+    description: "手动输入 JD，生成职责、技能、差距、简历建议和面试提示。",
+  },
+  "learning-tasks": {
+    title: "学习任务",
+    description: "基于 JD 分析和技能矩阵生成 7 天学习任务，并维护 todo / doing / done 状态。",
+  },
+};
 
 export function CareerWikiWorkspace({
   initialSection,
@@ -167,137 +184,95 @@ export function CareerWikiWorkspace({
     });
   }
 
+  const meta = sectionMeta[initialSection];
+  const active = initialSection as CareerWikiRouteKey;
+
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6 lg:px-8">
-        <aside className="hidden w-64 shrink-0 lg:block">
-          <Link href="/" className="mb-5 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="size-4" />
-            返回 LuJie CareerKit
+    <CareerWikiAppShell
+      active={active}
+      title={meta.title}
+      description={meta.description}
+      statusItems={[
+        { label: "CareerVault", value: data.vaultConfigured ? "已配置" : "待配置", status: data.vaultConfigured ? "pass" : "warn" },
+        { label: "项目", value: String(data.projects.length) },
+        { label: "技能", value: String(data.skills.length) },
+        { label: "JD 分析", value: String(data.jdAnalyses.length) },
+      ]}
+      actions={
+        <>
+          <Link
+            href="/career-wiki/jd-import"
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-medium hover:bg-surface-low"
+          >
+            <Upload className="size-4" />
+            导入 JD
           </Link>
-          <nav className="rounded-lg border border-line bg-surface p-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.section}
-                  href={`/career-wiki/${item.section}`}
-                  className={cn(
-                    "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-surface-low",
-                    initialSection === item.section && "bg-primary text-primary-foreground hover:bg-primary",
-                  )}
-                >
-                  <Icon className="size-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </aside>
+          <Link
+            href="/career-wiki/resume-tailor"
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-medium hover:bg-surface-low"
+          >
+            <Sparkles className="size-4" />
+            生成简历
+          </Link>
+          <button
+            type="button"
+            onClick={exportToObsidian}
+            disabled={isPending}
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-60"
+            title={data.vaultConfigured ? "导出到 Obsidian" : "需要先配置 CAREER_VAULT_PATH"}
+          >
+            <Download className="size-4" />
+            导出 Obsidian
+          </button>
+        </>
+      }
+    >
+      {!data.vaultConfigured ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+          未配置 CAREER_VAULT_PATH。基础编辑和分析仍可使用；配置后才能导出到 Obsidian。
+        </div>
+      ) : null}
+      {status ? <div className="rounded-lg border border-line bg-surface px-4 py-3 text-sm leading-6">{status}</div> : null}
 
-        <section className="min-w-0 flex-1 space-y-5">
-          <header className="flex flex-col gap-3 border-b border-line pb-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Career Wiki Agent MVP</p>
-              <h1 className="mt-2 text-2xl font-semibold">{sectionTitle(initialSection)}</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                本模块只处理个人知识库、项目素材、技能矩阵、JD 分析、学习任务和 Obsidian 导出，不包含自动投递或招聘平台自动化。
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href="/career-wiki/jd-import"
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-line bg-surface px-4 text-sm font-medium hover:bg-surface-low"
-              >
-                <Upload className="size-4" />
-                JD 导入
-              </Link>
-              <Link
-                href="/career-wiki/resume-tailor"
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-line bg-surface px-4 text-sm font-medium hover:bg-surface-low"
-              >
-                <Sparkles className="size-4" />
-                简历测试
-              </Link>
-              <button
-                type="button"
-                onClick={exportToObsidian}
-                disabled={isPending}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-60"
-              >
-                <Download className="size-4" />
-                导出到 Obsidian
-              </button>
-            </div>
-          </header>
-
-          {!data.vaultConfigured ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              未配置 CAREER_VAULT_PATH。基础编辑和分析可用；配置后才能导出到 Obsidian。
-            </div>
-          ) : null}
-          {status ? <div className="rounded-lg border border-line bg-surface px-4 py-3 text-sm">{status}</div> : null}
-
-          <div className="lg:hidden">
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.section}
-                  href={`/career-wiki/${item.section}`}
-                  className={cn(
-                    "shrink-0 rounded-md border border-line px-3 py-2 text-sm",
-                    initialSection === item.section && "border-primary bg-primary text-primary-foreground",
-                  )}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          {initialSection === "profile" && (
-            <ProfilePanel profileDraft={profileDraft} setProfileDraft={setProfileDraft} onSubmit={saveProfile} isPending={isPending} />
-          )}
-          {initialSection === "projects" && (
-            <ProjectsPanel
-              projects={data.projects}
-              draft={projectDraft}
-              setDraft={setProjectDraft}
-              onSubmit={saveProject}
-              isPending={isPending}
-            />
-          )}
-          {initialSection === "skills" && (
-            <SkillsPanel skills={data.skills} draft={skillDraft} setDraft={setSkillDraft} onSubmit={saveSkill} isPending={isPending} />
-          )}
-          {initialSection === "jd-analyzer" && (
-            <JdPanel
-              draft={jdDraft}
-              setDraft={setJdDraft}
-              analyses={data.jdAnalyses}
-              onSubmit={analyzeJd}
-              isPending={isPending}
-            />
-          )}
-          {initialSection === "learning-tasks" && (
-            <LearningTasksPanel
-              analyses={data.jdAnalyses}
-              selectedAnalysis={selectedAnalysis}
-              selectedAnalysisId={selectedAnalysis?.id ?? ""}
-              setSelectedAnalysisId={setSelectedAnalysisId}
-              tasks={selectedTasks}
-              onGenerate={generateTasks}
-              onUpdateStatus={updateTaskStatus}
-              isPending={isPending}
-            />
-          )}
-        </section>
-      </div>
-    </main>
+      {initialSection === "profile" && (
+        <ProfilePanel profileDraft={profileDraft} setProfileDraft={setProfileDraft} onSubmit={saveProfile} isPending={isPending} />
+      )}
+      {initialSection === "projects" && (
+        <ProjectsPanel
+          projects={data.projects}
+          draft={projectDraft}
+          setDraft={setProjectDraft}
+          onSubmit={saveProject}
+          isPending={isPending}
+        />
+      )}
+      {initialSection === "skills" && (
+        <SkillsPanel skills={data.skills} draft={skillDraft} setDraft={setSkillDraft} onSubmit={saveSkill} isPending={isPending} />
+      )}
+      {initialSection === "jd-analyzer" && (
+        <JdPanel
+          draft={jdDraft}
+          setDraft={setJdDraft}
+          analyses={data.jdAnalyses}
+          onSubmit={analyzeJd}
+          isPending={isPending}
+        />
+      )}
+      {initialSection === "learning-tasks" && (
+        <LearningTasksPanel
+          analyses={data.jdAnalyses}
+          selectedAnalysis={selectedAnalysis}
+          selectedAnalysisId={selectedAnalysis?.id ?? ""}
+          setSelectedAnalysisId={setSelectedAnalysisId}
+          tasks={selectedTasks}
+          onGenerate={generateTasks}
+          onUpdateStatus={updateTaskStatus}
+          isPending={isPending}
+        />
+      )}
+    </CareerWikiAppShell>
   );
-}
-
-function ProfilePanel({
+}function ProfilePanel({
   profileDraft,
   setProfileDraft,
   onSubmit,
@@ -703,11 +678,6 @@ function emptyProjectDraft(): ProjectDraft {
 
 function emptySkillDraft(): SkillDraft {
   return { name: "", category: "general", level: "learning", evidence: "", learningPriority: "medium" };
-}
-
-function sectionTitle(section: CareerWikiSection) {
-  const item = navItems.find((navItem) => navItem.section === section);
-  return item?.label ?? "Career Wiki";
 }
 
 function formatError(error: unknown) {
