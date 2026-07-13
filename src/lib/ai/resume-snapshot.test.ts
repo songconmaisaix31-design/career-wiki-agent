@@ -8,8 +8,8 @@ describe("AI resume snapshot", () => {
       editor: { template: "modern", displayName: "陈同学简历" },
       basics: {
         name: "陈同学",
-        email: "chen@example.com",
-        phone: "13800000000",
+        email: "candidate4@example.com",
+        phone: "13800138000",
         city: "上海",
         links: ["https://example.com"],
       },
@@ -20,8 +20,8 @@ describe("AI resume snapshot", () => {
       basics: { name: "陈同学", city: "上海" },
       customSections: [{ title: "主要优势与技能认证", content: "AIGC 全栈创作者。" }],
     });
-    expect(JSON.stringify(snapshot)).not.toContain("chen@example.com");
-    expect(JSON.stringify(snapshot)).not.toContain("13800000000");
+    expect(JSON.stringify(snapshot)).not.toContain("candidate4@example.com");
+    expect(JSON.stringify(snapshot)).not.toContain("13800138000");
     expect(JSON.stringify(snapshot)).not.toContain("template");
   });
 });

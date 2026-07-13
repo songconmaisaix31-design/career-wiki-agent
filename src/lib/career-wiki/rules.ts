@@ -98,6 +98,13 @@ export function sanitizeWindowsFilename(input: string) {
   return sanitized || "untitled";
 }
 
+export function sanitizeResumeRoleLabel(role: string) {
+  return role
+    .replace(/（[^）]*(?:职位长图|截图|公开索引摘要|应届|在校)[^）]*）/g, "")
+    .replace(/\([^)]*(?:职位长图|截图|公开索引摘要|应届|在校)[^)]*\)/gi, "")
+    .trim();
+}
+
 function extractRequiredSkills(text: string, skills: CareerSkillView[]) {
   const candidates = [...COMMON_SKILLS, ...skills.map((skill) => skill.name), ...skills.map((skill) => skill.category)]
     .map((item) => item.trim())

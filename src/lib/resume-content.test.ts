@@ -21,12 +21,12 @@ describe("resume content normalization", () => {
       ...emptyResume,
       basics: {
         ...emptyResume.basics,
-        email: "18379185091858653164@qq.com",
+        email: "13800138000123456@qq.com",
       },
     });
 
-    expect(normalized.basics.phone).toBe("18379185091");
-    expect(normalized.basics.email).toBe("858653164@qq.com");
+    expect(normalized.basics.phone).toBe("13800138000");
+    expect(normalized.basics.email).toBe("123456@qq.com");
   });
 
   it("coerces model object awards into strings", () => {

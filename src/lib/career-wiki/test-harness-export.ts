@@ -11,6 +11,7 @@ import { assertNoSensitiveContent } from "./security/sensitive-scan";
 import { buildLearningTasksForJd } from "./resume-tailor";
 import { ensureResumeTailorSchema } from "./test-harness-repository";
 import type { CareerJdAnalysisView, CareerResumeVersionView, CareerSkillView, ResumeEvidenceItem, ResumeTailorRunView } from "./types";
+import { analyzeResumeWriting } from "./writing-quality/analyze-resume";
 
 export async function exportTailorRuns(runIds: string[]) {
   await ensureResumeTailorSchema();
@@ -435,6 +436,7 @@ function toVersionView(version: {
       blockingReason: typeof item.blockingReason === "string" ? item.blockingReason : "",
     })),
     riskNotes,
+    writingQuality: analyzeResumeWriting(version.finalResumeMarkdown),
     exportPath: version.exportPath,
     checklist: [],
     updatedAt: version.updatedAt.toISOString(),

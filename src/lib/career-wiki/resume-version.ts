@@ -8,20 +8,21 @@ import type {
   ResumeTailorRunView,
 } from "./types";
 import { findSensitiveContentIssues } from "./security/sensitive-scan";
+import { analyzeResumeWriting } from "./writing-quality/analyze-resume";
 
 const rejectedEvidenceSources = new Set(["inferred_without_evidence", "missing_evidence", "llm_guess", "unknown"]);
 
 export function buildResumeDiff(baseline: ResumeBaselineView, run: ResumeTailorRunView): ResumeDiffSummary {
   const tailoredSections = splitMarkdownSections(run.finalResumeMarkdown);
   const baselineSkills = new Set(baseline.skills.map(normalize));
-  const tailoredSkills = extractList(tailoredSections["技能"]);
-  const projectBullets = extractList(tailoredSections["项目经历"]);
-  const workExperience = extractList(tailoredSections["工作经历"]);
-  const education = extractList(tailoredSections["教育背景"]);
+  const tailoredSkills = extractList(firstSection(tailoredSections, ["核心技能", "技能", "skills"]));
+  const projectBullets = extractList(firstSection(tailoredSections, ["项目经历", "projects"]));
+  const workExperience = extractList(firstSection(tailoredSections, ["工作经历", "work experience", "experience"]));
+  const education = extractList(firstSection(tailoredSections, ["教育背景", "教育经历", "education"]));
   const addedKeywords = run.jdAnalysis.requiredSkills.filter((skill) => !baselineSkills.has(normalize(skill)) && run.targetedSkills.includes(skill));
 
   return {
-    summary: [firstNonEmpty(tailoredSections["个人总结"])].filter((item): item is string => Boolean(item)),
+    summary: [firstNonEmpty(firstSection(tailoredSections, ["职业概述", "个人总结", "summary", "profile"]))].filter((item): item is string => Boolean(item)),
     skills: tailoredSkills.filter((skill) => !baselineSkills.has(normalize(skill))),
     projectBullets,
     workExperience: diffList(workExperience, baseline.workExperience),
@@ -34,7 +35,12 @@ export function buildResumeDiff(baseline: ResumeBaselineView, run: ResumeTailorR
   };
 }
 
-export function buildEvidenceSummary(run: ResumeTailorRunView, projects: CareerProjectView[], evidenceItems: CareerEvidenceItemView[] = []): ResumeEvidenceItem[] {
+export function buildEvidenceSummary(
+  run: ResumeTailorRunView,
+  projects: CareerProjectView[],
+  evidenceItems: CareerEvidenceItemView[] = [],
+  baseline?: ResumeBaselineView,
+): ResumeEvidenceItem[] {
   const projectMap = new Map(projects.map((project) => [normalize(project.name), project]));
   const verifiedEvidence = evidenceItems.filter((item) => item.status === "verified");
   const items: ResumeEvidenceItem[] = [];
@@ -61,16 +67,23 @@ export function buildEvidenceSummary(run: ResumeTailorRunView, projects: CareerP
 
   for (const bullet of run.rewrittenProjectBullets) {
     const project = findProjectForBullet(bullet, projectMap);
+    const fromBaseline = baseline?.projects.some((item) => normalize(item) === normalize(bullet) || normalize(bullet).includes(normalize(item)));
     const manualEvidence = project ? findVerifiedEvidenceForProject(project, verifiedEvidence) : undefined;
-    const inferredSource = project ? inferProjectEvidenceSource(project) : "missing_evidence";
+    const inferredSource = project ? inferProjectEvidenceSource(project) : fromBaseline ? "baseline_resume" : "missing_evidence";
     const evidenceSource = manualEvidence?.evidenceType ?? inferredSource;
     const hasVerifiedEvidence = Boolean(manualEvidence) || evidenceSource !== "user_input";
-    const valid = Boolean(project) && hasVerifiedEvidence && !hasUnsafeText(bullet) && !isEmptyBullet(bullet);
+    const valid = (Boolean(project) || Boolean(fromBaseline)) && hasVerifiedEvidence && !hasUnsafeText(bullet) && !isEmptyBullet(bullet);
     items.push({
       section: "project_bullets",
       content: bullet,
       evidenceSource,
-      sourceLabel: manualEvidence ? `${manualEvidence.title} - ${manualEvidence.sourcePath || manualEvidence.sourceExcerpt}` : project ? project.interviewStory || `CareerProject:${project.name}` : "",
+      sourceLabel: manualEvidence
+        ? `${manualEvidence.title} - ${manualEvidence.sourcePath || manualEvidence.sourceExcerpt}`
+        : project
+          ? project.interviewStory || `CareerProject:${project.name}`
+          : fromBaseline
+            ? "baseline resume project experience"
+            : "",
       valid,
       blockingReason: valid ? "" : buildBulletBlockingReason(bullet, project?.name, hasVerifiedEvidence),
     });
@@ -105,6 +118,7 @@ export function buildExportChecklist(input: {
 }): ResumeExportChecklistItem[] {
   const markdown = input.finalResumeMarkdown;
   const evidenceFailures = input.evidenceSummary.filter((item) => !item.valid);
+  const writingQuality = analyzeResumeWriting(markdown);
   const checklist: ResumeExportChecklistItem[] = [
     item("baseline", "已选择 baseline resume", Boolean(input.baselineId), "缺少 baseline resume"),
     item("jd", "已选择 JD", Boolean(input.jdTestId), "缺少 JD"),
@@ -122,6 +136,12 @@ export function buildExportChecklist(input: {
     item("account", "没有招聘平台账号信息", !/boss|linkedin|智联.*账号|招聘平台账号/i.test(markdown), "final resume 可能包含招聘平台账号信息"),
     item("empty-bullets", "没有空项目 bullet", !/\n-\s*(TODO)?\s*$/im.test(markdown), "final resume 包含空 bullet"),
     item("diff", "已生成 diff report", hasDiff(input.diffSummary), "diff report 为空"),
+    item(
+      "writing-quality",
+      "没有阻断级写作问题",
+      writingQuality.passed,
+      writingQuality.findings.filter((finding) => finding.severity === "blocking").map((finding) => finding.message).join("；"),
+    ),
   ];
   if (input.requireApproved) {
     checklist.unshift(item("approved", "版本已 approved", input.status === "approved" || input.status === "exported", "只有 approved 版本可以导出 final resume"));
@@ -166,6 +186,11 @@ function extractList(section = "") {
     .filter(Boolean);
 }
 
+function firstSection(sections: Record<string, string>, names: string[]) {
+  const entry = Object.entries(sections).find(([title]) => names.some((name) => title.toLowerCase().includes(name.toLowerCase())));
+  return entry?.[1] ?? "";
+}
+
 function firstNonEmpty(section = "") {
   return section
     .split(/\r?\n/)
@@ -185,6 +210,7 @@ function findProjectForBullet(bullet: string, projectMap: Map<string, CareerProj
 
 function inferProjectEvidenceSource(project: CareerProjectView): ResumeEvidenceItem["evidenceSource"] {
   const source = project.interviewStory.toLowerCase();
+  if (source.includes("baseline_resume")) return "baseline_resume";
   if (source.includes("wiki/workflows")) return "wiki_workflow";
   if (source.includes("logs/changelog")) return "wiki_changelog";
   if (source.includes("source:")) return "wiki_project";

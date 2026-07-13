@@ -44,6 +44,13 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --career-ink: #111318;
+  --career-canvas: #f7f8fb;
+  --career-primary: #2457ff;
+  --career-primary-soft: #dfe7ff;
+  --career-proof: #b9f227;
+  --career-proof-soft: #d5ff70;
+  --career-risk-soft: #ffd9d2;
 }
 
 @theme inline {
@@ -59,6 +66,13 @@
   --color-primary-soft: var(--primary-soft);
   --color-brand: var(--brand);
   --color-brand-muted: var(--brand-muted);
+  --color-career-ink: var(--career-ink);
+  --color-career-canvas: var(--career-canvas);
+  --color-career-primary: var(--career-primary);
+  --color-career-primary-soft: var(--career-primary-soft);
+  --color-career-proof: var(--career-proof);
+  --color-career-proof-soft: var(--career-proof-soft);
+  --color-career-risk-soft: var(--career-risk-soft);
   --font-sans: var(--font-sans);
   --font-serif: "Noto Serif SC", "Songti SC", "STSong", serif;
   --font-heading: var(--font-sans);

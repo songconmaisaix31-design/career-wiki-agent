@@ -1,5 +1,5 @@
 {
-  "profile": { "title": "Acme - Data Automation Engineer", "company": "Acme", "role": "Data Automation Engineer" },
+  "profile": { "name": "候选人示例", "title": "候选人示例", "headline": "求职方向：Data Automation Engineer", "company": "Acme", "role": "Data Automation Engineer" },
   "target_role": "Data Automation Engineer",
   "summary": "具备数据采集、自动化脚本和多系统数据治理材料整理经验。",
   "skills": [{ "category": "Core Skills", "items": ["Python", "SQL", "ADB", "CDP", "Data Governance"] }],

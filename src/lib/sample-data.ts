@@ -51,7 +51,7 @@ const jiangHeResume: ResumeContent = {
   },
   basics: {
     name: "姜禾",
-    email: "jianghe@example.com",
+    email: "candidate5@example.com",
     phone: "138 2100 1100",
     city: "北京",
     links: ["github.com/jianghe", "portfolio.example.com"],

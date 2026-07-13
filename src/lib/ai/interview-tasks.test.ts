@@ -55,8 +55,8 @@ describe("interview AI tasks", () => {
         editor: { template: "campus" },
         basics: {
           name: "陈同学",
-          email: "private@example.com",
-          phone: "13800000000",
+          email: "candidate7@example.com",
+          phone: "13800138000",
           city: "上海",
           links: ["https://example.com/private"],
         },
@@ -67,8 +67,8 @@ describe("interview AI tasks", () => {
 
     expect(prompt).toContain("校园二手交易平台");
     expect(prompt).toContain("上海");
-    expect(prompt).not.toContain("private@example.com");
-    expect(prompt).not.toContain("13800000000");
+    expect(prompt).not.toContain("candidate7@example.com");
+    expect(prompt).not.toContain("13800138000");
     expect(prompt).not.toContain("example.com/private");
     expect(prompt).not.toContain("template");
   });

@@ -25,9 +25,9 @@ export function ResumePrintPreview({
     <main className="min-h-screen bg-slate-100">
       <div className="no-print sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
-          <div>
+          <div className="min-w-0 flex-1 basis-64">
             <h1 className="text-base font-semibold text-slate-950">简历打印预览</h1>
-            <p className="text-sm text-slate-600">当前模板：{template}。点击打印后选择 Save as PDF。</p>
+            <p className="max-w-full text-sm text-slate-600 [overflow-wrap:anywhere]">当前模板：{template}。点击打印后选择 Save as PDF。</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {(["modern", "ats", "compact"] as const).map((item) => (

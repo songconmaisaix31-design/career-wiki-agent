@@ -6,7 +6,7 @@ import type { ResumeContent } from "./types";
 const namedResume: ResumeContent = {
   basics: {
     name: "Alex Chen",
-    email: "alex@example.com",
+    email: "candidate3@example.com",
     phone: "138 0000 0000",
     city: "上海",
     links: ["github.com/alexchen"],

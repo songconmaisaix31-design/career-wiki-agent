@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { Download, FileText, GitMerge, ListChecks, Play, Upload } from "lucide-react";
+import { Download, ExternalLink, FileText, GitMerge, ListChecks, Play, Send, Upload } from "lucide-react";
 
 import { CareerWikiAppShell } from "@/components/career-wiki/app-shell";
 import { labelForStatus } from "@/components/career-wiki/navigation";
@@ -18,11 +18,13 @@ import type {
   ResumeBaselineView,
   ResumeTailorHarnessData,
   ResumeTailorRunView,
+  ResumeWritingQualityReport,
   WikiImportPreview,
 } from "@/lib/career-wiki/types";
 import type { ParsedDocument } from "@/lib/career-wiki/document-ingest/types";
 import type { ProjectFitOverrideType, ProjectFitResult } from "@/lib/career-wiki/project-fit/types";
 import type { ResumeTemplateId } from "@/lib/career-wiki/resume-templates/templates";
+import type { ManualApplicationHandoffAction, ManualApplicationHandoffView } from "@/lib/career-wiki/manual-application-handoff";
 import { cn } from "@/lib/utils";
 
 export type ResumeTailorHarnessSection = "wiki-import" | "jd-import" | "resume-baseline" | "resume-tests" | "project-fit" | "evidence-editor" | "resume-tailor" | "resume-versions";
@@ -489,6 +491,25 @@ export function ResumeTailorHarness({
     });
   }
 
+  function recordApplicationHandoff(id: string, action: ManualApplicationHandoffAction, confirmed = false) {
+    startTransition(async () => {
+      try {
+        const result = await requestJson<{ handoff: ManualApplicationHandoffView }>(
+          "/api/career-wiki/resume-versions/handoff",
+          { versionId: id, action, confirmed },
+          "POST",
+        );
+        setStatus(
+          action === "manually_sent"
+            ? `已记录人工投递：${result.handoff.company} · ${result.handoff.role}`
+            : `已准备人工投递：请打开岗位页并使用 ${result.handoff.resumePath}`,
+        );
+      } catch (error) {
+        setStatus(formatError(error));
+      }
+    });
+  }
+
   const active = initialSection as CareerWikiRouteKey;
 
   return (
@@ -636,6 +657,7 @@ export function ResumeTailorHarness({
       {initialSection === "resume-versions" && (
         <ResumeVersionsPanel
           versions={data.resumeVersions}
+          tests={data.jdTests}
           selectedVersionId={selectedVersionId}
           setSelectedVersionId={setSelectedVersionId}
           onApprove={(id) => updateVersionStatus(id, "approved")}
@@ -643,6 +665,7 @@ export function ResumeTailorHarness({
           onExport={exportVersion}
           onRender={renderVersion}
           onExportFormat={exportVersionFormat}
+          onHandoff={recordApplicationHandoff}
           renderPreview={renderPreview}
           selectedTemplate={selectedTemplate}
           setSelectedTemplate={setSelectedTemplate}
@@ -1324,6 +1347,10 @@ function TailorRunsPanel({
             />
             <ListBlock title="Diff" items={selectedVersion.diffSummary.projectBullets.slice(0, 6)} />
             <ListBlock title="证据校验" items={selectedVersion.evidenceSummary.map((item) => `${item.valid ? "通过" : "阻断"} · ${item.section} · ${item.evidenceSource}`)} />
+            <ListBlock
+              title={`写作质量 · ${selectedVersion.writingQuality.score} 分`}
+              items={formatWritingFindings(selectedVersion.writingQuality)}
+            />
             <div className="flex flex-wrap gap-2 lg:col-span-2">
               <ActionButton onClick={() => onApprove(selectedVersion.id)} disabled={isPending || selectedVersion.status !== "draft"} icon={ListChecks} label="确认为已批准" />
               <ActionButton
@@ -1346,6 +1373,7 @@ function TailorRunsPanel({
 
 function ResumeVersionsPanel({
   versions,
+  tests,
   selectedVersionId,
   setSelectedVersionId,
   onApprove,
@@ -1353,12 +1381,14 @@ function ResumeVersionsPanel({
   onExport,
   onRender,
   onExportFormat,
+  onHandoff,
   renderPreview,
   selectedTemplate,
   setSelectedTemplate,
   isPending,
 }: {
   versions: CareerResumeVersionView[];
+  tests: CareerJdTestView[];
   selectedVersionId: string;
   setSelectedVersionId: (id: string) => void;
   onApprove: (id: string) => void;
@@ -1366,6 +1396,7 @@ function ResumeVersionsPanel({
   onExport: (id: string) => void;
   onRender: (id: string, format: "markdown" | "html", template?: ResumeTemplateId) => void;
   onExportFormat: (id: string, format: "markdown" | "json" | "html" | "docx" | "pdf") => void;
+  onHandoff: (id: string, action: ManualApplicationHandoffAction, confirmed?: boolean) => void;
   renderPreview: { format: "markdown" | "html"; content: string; template: ResumeTemplateId } | null;
   selectedTemplate: ResumeTemplateId;
   setSelectedTemplate: (template: ResumeTemplateId) => void;
@@ -1373,6 +1404,7 @@ function ResumeVersionsPanel({
 }) {
   const selected = versions.find((version) => version.id === selectedVersionId) ?? versions[0];
   const canExport = selected ? selected.status === "approved" || selected.status === "exported" : false;
+  const sourceUrl = selected ? safeHttpUrl(tests.find((test) => test.id === selected.jdTestId)?.source ?? "") : "";
   return (
     <section className="grid gap-4 lg:grid-cols-[360px_1fr]">
       <Checklist
@@ -1438,11 +1470,53 @@ function ResumeVersionsPanel({
               />
             ))}
           </div>
+          <div className="mt-4 rounded-md border border-line bg-background p-3">
+            <h3 className="text-sm font-medium">人工投递交接</h3>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              系统只准备岗位链接和已导出简历，不会登录招聘平台、上传文件或点击发送。
+            </p>
+            <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+              <p className="break-all">岗位来源：{sourceUrl || "当前 JD 未保存 HTTP(S) 岗位链接"}</p>
+              <p className="break-all">简历文件：{selected.exportPath || "请先导出正式简历"}</p>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {sourceUrl ? (
+                <a
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-9 items-center gap-2 rounded-md border border-line bg-surface px-3 text-sm font-medium hover:bg-surface-low"
+                >
+                  <ExternalLink className="size-4" />
+                  打开原岗位页
+                </a>
+              ) : null}
+              <ActionButton
+                onClick={() => onHandoff(selected.id, "ready_for_manual_send")}
+                disabled={isPending || selected.status !== "exported" || !sourceUrl || !selected.exportPath}
+                icon={ExternalLink}
+                label="准备人工投递"
+                variant="secondary"
+              />
+              <ActionButton
+                onClick={() => {
+                  if (window.confirm("请确认：你已经在招聘平台上人工上传并发送了这份简历。")) {
+                    onHandoff(selected.id, "manually_sent", true);
+                  }
+                }}
+                disabled={isPending || selected.status !== "exported" || !sourceUrl || !selected.exportPath}
+                icon={Send}
+                label="标记为已人工投递"
+                variant="secondary"
+              />
+            </div>
+          </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <ListBlock title="导出前检查清单" items={selected.checklist.map((item) => `${item.passed ? "通过" : "阻断"} · ${cleanChecklistLabel(item.label)}${item.reason ? `：${cleanChecklistLabel(item.reason)}` : ""}`)} />
             <ListBlock title="风险提示" items={selected.riskNotes} />
             <ListBlock title="Diff · Project Bullets" items={selected.diffSummary.projectBullets} />
             <ListBlock title="证据校验" items={selected.evidenceSummary.map((item) => `${item.valid ? "通过" : "阻断"} · ${item.content}`)} />
+            <ListBlock title={`写作质量 · ${selected.writingQuality.score} 分`} items={formatWritingFindings(selected.writingQuality)} />
           </div>
           {renderPreview ? (
             <div className="mt-4 rounded-md border border-line bg-background p-3">
@@ -1613,4 +1687,21 @@ function cleanChecklistLabel(value: string) {
     .replace(/token/gi, "敏感凭据")
     .replace(/password/gi, "敏感凭据")
     .replace(/secret/gi, "敏感凭据");
+}
+
+function formatWritingFindings(report: ResumeWritingQualityReport) {
+  if (!report.findings.length) return ["通过 · 未发现明显的机械表达或阻断级夸大内容"];
+  return report.findings.map((finding) => {
+    const severity = finding.severity === "blocking" ? "阻断" : finding.severity === "warning" ? "建议修改" : "提示";
+    return `${severity} · ${finding.section} · ${finding.message} 建议：${finding.suggestion}`;
+  });
+}
+
+function safeHttpUrl(value: string) {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : "";
+  } catch {
+    return "";
+  }
 }

@@ -106,6 +106,26 @@ describe("project fit classifier", () => {
     expect(selected).not.toContain("Thin Agent Note");
   });
 
+  it("removes explicitly archived projects before scoring", () => {
+    const archived = project({
+      id: "archived",
+      name: "Old Portfolio Project",
+      status: "archived / do_not_use",
+      description: "AI agent and workflow project",
+      techStack: ["LLM", "Agent"],
+      highlights: ["Old project"],
+      resumeBullets: ["Old project bullet"],
+      interviewStory: "Source: baseline_resume",
+    });
+    const results = classifyProjectsForJd({
+      jdTest: jd("AI Application Engineer", "Need AI agent and workflow experience."),
+      projects: [...projects, archived],
+      targetDirection: "AI Application Engineer",
+    });
+
+    expect(results.some((result) => result.project_id === archived.id)).toBe(false);
+  });
+
   it("records manual override reason and renders Obsidian wikilinks", () => {
     const results = classifyProjectsForJd({
       jdTest: jd("AI Application Engineer", "Need AI agent and workflow experience."),

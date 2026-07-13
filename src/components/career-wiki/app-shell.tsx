@@ -1,11 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowUpRight, Database, Home, Upload } from "lucide-react";
+import { ArrowUpRight, FileCheck2, Home, WandSparkles } from "lucide-react";
 
 import { CareerWikiPageHeader } from "@/components/career-wiki/page-header";
 import { CareerWikiSidebarNav } from "@/components/career-wiki/sidebar-nav";
 import type { CareerWikiRouteKey } from "@/components/career-wiki/navigation";
-import { careerWikiNavItems, getCareerWikiNavItem } from "@/components/career-wiki/navigation";
+import { careerWikiPrimaryNavItems, getCareerWikiNavItem } from "@/components/career-wiki/navigation";
 import type { CareerWikiStatusItem } from "@/components/career-wiki/status-strip";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -40,17 +40,17 @@ export function CareerWikiAppShell({
                 <p className="truncate text-xs text-muted-foreground">本地 Career OS · 证据优先 · 审计可追踪</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="sm" render={<Link href="/" />}>
+                <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/" />}>
                   <Home className="size-3.5" />
                   LuJie
                 </Button>
-                <Button variant="outline" size="sm" render={<Link href="/career-wiki/jd-import" />}>
-                  <Upload className="size-3.5" />
-                  导入 JD
+                <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/career-wiki/quick-start" />}>
+                  <WandSparkles className="size-3.5" />
+                  一键生成
                 </Button>
-                <Button variant="outline" size="sm" render={<Link href="/career-wiki/resume-versions" />}>
-                  <Database className="size-3.5" />
-                  简历版本
+                <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/career-wiki/resume-versions" />}>
+                  <FileCheck2 className="size-3.5" />
+                  简历结果
                 </Button>
               </div>
             </div>
@@ -58,7 +58,7 @@ export function CareerWikiAppShell({
 
           <div className="lg:hidden">
             <div className="flex gap-2 overflow-x-auto border-b border-line px-4 py-3">
-              {careerWikiNavItems.map((item) => (
+              {careerWikiPrimaryNavItems.map((item) => (
                 <Link
                   key={item.key}
                   href={item.href}
@@ -80,7 +80,7 @@ export function CareerWikiAppShell({
               description={description}
               actions={
                 actions ?? (
-                  <Button variant="outline" size="sm" render={<Link href="/career-wiki/workflow" />}>
+                  <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/career-wiki/workflow" />}>
                     查看流程
                     <ArrowUpRight className="size-3.5" />
                   </Button>

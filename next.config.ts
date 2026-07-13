@@ -3,6 +3,7 @@ import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
+  serverExternalPackages: ["pdf-parse", "word-extractor"],
 };
 
 const withNextIntl = createNextIntlPlugin();

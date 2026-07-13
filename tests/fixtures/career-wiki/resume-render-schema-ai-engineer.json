@@ -1,5 +1,5 @@
 {
-  "profile": { "title": "Acme - AI Application Engineer", "company": "Acme", "role": "AI Application Engineer" },
+  "profile": { "name": "候选人示例", "title": "候选人示例", "headline": "求职方向：AI Application Engineer", "company": "Acme", "role": "AI Application Engineer" },
   "target_role": "AI Application Engineer",
   "summary": "具备 AI 应用开发、Next.js 和自动化项目经验，能围绕业务场景交付可验证原型。",
   "skills": [{ "category": "Core Skills", "items": ["TypeScript", "Next.js", "LLM", "RAG", "Workflow Automation"] }],

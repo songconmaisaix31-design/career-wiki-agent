@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { assertSafeDocumentInput } from "./guards";
 import { parseHtmlDocument } from "./html-adapter";
 import { parsePlainTextDocument } from "./plain-text-adapter";
+import { structureResumeText } from "./markitdown-adapter";
 
 describe("document ingest", () => {
   it("blocks sensitive filenames", () => {
@@ -51,5 +52,14 @@ describe("document ingest", () => {
     expect(parsed.markdown).toContain("# JD");
     expect(parsed.markdown).toContain("- React");
     expect(parsed.markdown).not.toContain("bad()");
+  });
+
+  it("structures native resume text into markdown sections", () => {
+    const markdown = structureResumeText("王聪锐\n核心优势\n• 技术与业务双向驱动\n项目经历\n• AI 应用项目");
+
+    expect(markdown).toContain("# 王聪锐");
+    expect(markdown).toContain("## 核心优势");
+    expect(markdown).toContain("- 技术与业务双向驱动");
+    expect(markdown).toContain("## 项目经历");
   });
 });

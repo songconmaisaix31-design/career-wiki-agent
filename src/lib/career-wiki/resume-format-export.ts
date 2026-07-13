@@ -6,7 +6,7 @@ import { createCareerExportLog } from "./repository";
 import { assertChecklistPassed, buildExportChecklist, versionNumberFromName } from "./resume-version";
 import { assertSafeRenderSchema, buildResumeRenderSchema } from "./resume-render-schema";
 import { getCareerResumeVersionById, updateCareerResumeVersionStatus } from "./test-harness-repository";
-import { sanitizeWindowsFilename } from "./rules";
+import { sanitizeResumeRoleLabel, sanitizeWindowsFilename } from "./rules";
 import { renderResumeDocx } from "./renderers/docx-renderer";
 import { renderResumeHtml } from "./renderers/html-renderer";
 import { renderResumeJson } from "./renderers/json-renderer";
@@ -56,7 +56,8 @@ export async function exportResumeVersionFormat({
   const schema = buildResumeRenderSchema(version);
   assertSafeRenderSchema(schema);
 
-  const slug = sanitizeWindowsFilename(`${version.company}-${version.role}-v${versionNumberFromName(version.versionName)}`);
+  const roleLabel = sanitizeResumeRoleLabel(version.role) || "resume";
+  const slug = sanitizeWindowsFilename(`${version.company}-${roleLabel}-v${versionNumberFromName(version.versionName)}`);
   const files: string[] = [];
   const baseName = `${slug}-${template}-final-resume`;
 

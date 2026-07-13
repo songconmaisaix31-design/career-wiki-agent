@@ -4,7 +4,7 @@ import { buildUploadedResumeDraft, getResumeUploadKind, RESUME_UPLOAD_ACCEPT } f
 import type { ResumeContent } from "./types";
 
 const aiParsedResume: ResumeContent = {
-  basics: { name: "王小明", email: "wm@example.com", phone: "13800138000", city: "", links: [] },
+  basics: { name: "王小明", email: "candidate8@example.com", phone: "13800138000", city: "", links: [] },
   profile: { title: "产品运营", summary: "" },
   education: [],
   experiences: [],
@@ -55,7 +55,7 @@ describe("resume upload formats", () => {
           [
             "王小明",
             "求职意向：产品运营",
-            "手机：13800138000 邮箱：wm@example.com",
+            "手机：13800138000 邮箱：candidate8@example.com",
             "",
             "教育背景",
             "北京大学 ｜ 本科 ｜ 信息管理 ｜ 2020.09-2024.06",
@@ -76,7 +76,7 @@ describe("resume upload formats", () => {
 
     expect(draft.fileName).toBe("产品运营简历.txt");
     expect(draft.content.basics.name).toBe("王小明");
-    expect(draft.content.basics.email).toBe("wm@example.com");
+    expect(draft.content.basics.email).toBe("candidate8@example.com");
     expect(fetch).toHaveBeenCalledWith("/api/ai/resume-import", expect.objectContaining({ method: "POST" }));
   });
 

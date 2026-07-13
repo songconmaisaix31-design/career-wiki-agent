@@ -7,7 +7,7 @@ import type { CareerEvidenceItemView, CareerProjectView } from "../types";
 
 export function classifyProjectsForJd(context: ProjectFitRunContext): ProjectFitResult[] {
   return context.projects
-    .filter((project) => !isLowSignalProject(project.name))
+    .filter((project) => !isLowSignalProject(project.name) && !isExplicitlyExcludedProject(project))
     .map((project) => classifyProject(context, project))
     .sort((left, right) => right.fit_score - left.fit_score);
 }
@@ -129,6 +129,10 @@ function directNameBoost(projectName: string, jdText: string) {
 
 function isLowSignalProject(name: string) {
   return /^\.|^(scripts?|n8n|index|project index|workflows?)$/i.test(name.trim());
+}
+
+function isExplicitlyExcludedProject(project: CareerProjectView) {
+  return /archived|do[_ -]?not[_ -]?use|excluded/i.test(project.status);
 }
 
 function normalize(value: string) {

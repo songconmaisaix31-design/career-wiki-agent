@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import type { CareerWikiRouteKey } from "@/components/career-wiki/navigation";
-import { careerWikiNavGroups } from "@/components/career-wiki/navigation";
+import { careerWikiAdvancedNavGroups, careerWikiPrimaryNavItems } from "@/components/career-wiki/navigation";
 import { cn } from "@/lib/utils";
 
 export function CareerWikiSidebarNav({ active }: { active: CareerWikiRouteKey }) {
@@ -16,8 +16,32 @@ export function CareerWikiSidebarNav({ active }: { active: CareerWikiRouteKey })
         </span>
       </Link>
 
-      <nav className="mt-7 space-y-6">
-        {careerWikiNavGroups.map((group) => (
+      <nav className="mt-7 space-y-5">
+        <div className="space-y-1">
+          {careerWikiPrimaryNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = item.key === active;
+            return (
+              <Link
+                key={item.key}
+                href={item.href}
+                className={cn(
+                  "flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
+                  isActive ? "bg-surface-high text-primary shadow-[inset_0_0_0_1px_var(--border)]" : "text-foreground/80 hover:bg-surface-mid hover:text-foreground",
+                )}
+                title={item.description}
+              >
+                <Icon className="size-4 shrink-0" />
+                <span className="min-w-0"><span className="block truncate">{item.label}</span><span className="block truncate text-[0.68rem] font-normal text-muted-foreground">{item.technicalLabel}</span></span>
+              </Link>
+            );
+          })}
+        </div>
+
+        <details className="border-t border-line pt-4" open={!careerWikiPrimaryNavItems.some((item) => item.key === active)}>
+          <summary className="cursor-pointer list-none rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-mid hover:text-foreground">高级功能</summary>
+          <div className="mt-4 space-y-6">
+        {careerWikiAdvancedNavGroups.map((group) => (
           <div key={group.label} className="space-y-2">
             <p className="px-3 text-xs font-medium text-muted-foreground">{group.label}</p>
             <div className="space-y-1">
@@ -47,6 +71,8 @@ export function CareerWikiSidebarNav({ active }: { active: CareerWikiRouteKey })
             </div>
           </div>
         ))}
+          </div>
+        </details>
       </nav>
       <div className="mt-8 border-t border-line pt-5 text-xs leading-5 text-muted-foreground">
         <p>本地优先，不接入自动投递。</p>

@@ -11,6 +11,8 @@ import { assertNoBlockingEvidenceReview } from "./evidence-review/repository";
 import { assertChecklistPassed, buildEvidenceSummary, buildExportChecklist, buildResumeDiff } from "./resume-version";
 import { createTailorRunDraft, parseBaselineMarkdown } from "./resume-tailor";
 import { getProjectFitResults } from "./project-fit/repository";
+import { getCareerProfile } from "./repository";
+import { analyzeResumeWriting } from "./writing-quality/analyze-resume";
 import type { CareerJdTestInput, ResumeBaselineInput, ResumeVersionCreateInput } from "./schemas";
 import type {
   CareerResumeVersionView,
@@ -195,13 +197,14 @@ export async function runResumeTailorTests(input: { baselineId?: string; jdTestI
     : await prisma.resumeBaseline.findFirst({ orderBy: { updatedAt: "desc" } });
   if (!baseline) throw new Error("请先导入 baseline Markdown 简历。");
 
-  const [projects, skills, jdTests] = await Promise.all([
+  const [projects, skills, jdTests, profile] = await Promise.all([
     prisma.careerProject.findMany({
       where: input.projectIds?.length ? { id: { in: input.projectIds } } : undefined,
       orderBy: { updatedAt: "desc" },
     }),
     prisma.careerSkill.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.careerJdTest.findMany({ where: { id: { in: input.jdTestIds } } }),
+    getCareerProfile(),
   ]);
   const baselineView = toResumeBaselineView(baseline);
   const projectViews = projects.map(toCareerProjectView);
@@ -215,6 +218,7 @@ export async function runResumeTailorTests(input: { baselineId?: string; jdTestI
       jdTest: toCareerJdTestView(jdTest),
       projects: projectViews,
       skills: skillViews,
+      profile,
       projectFitResults,
       evidenceItems,
     });
@@ -254,7 +258,7 @@ export async function createCareerResumeVersion(input: ResumeVersionCreateInput)
   const baselineView = toResumeBaselineView(baseline);
   const projectViews = projects.map(toCareerProjectView);
   const diffSummary = buildResumeDiff(baselineView, runView);
-  const evidenceSummary = buildEvidenceSummary(runView, projectViews, evidenceItems);
+  const evidenceSummary = buildEvidenceSummary(runView, projectViews, evidenceItems, baselineView);
   const checklist = buildExportChecklist({
     baselineId: runView.baselineId,
     jdTestId: runView.jdTestId,
@@ -451,6 +455,7 @@ function toCareerResumeVersionView(version: CareerResumeVersion): CareerResumeVe
     diffSummary,
     evidenceSummary,
     riskNotes,
+    writingQuality: analyzeResumeWriting(version.finalResumeMarkdown),
     exportPath: version.exportPath,
     checklist: buildExportChecklist({
       baselineId: version.baselineId,

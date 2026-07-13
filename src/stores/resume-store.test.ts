@@ -39,8 +39,8 @@ function createResume(): Resume {
         content: {
           fullName: "林泽宇",
           jobTitle: "后端开发实习生",
-          email: "linzeyu@example.com",
-          phone: "13900000000",
+          email: "candidate6@example.com",
+          phone: "13800138000",
           location: "杭州",
         },
       },

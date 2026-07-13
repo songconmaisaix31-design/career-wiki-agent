@@ -8,7 +8,9 @@ export type ResumeRenderProject = {
 
 export type ResumeRenderSchema = {
   profile: {
+    name: string;
     title: string;
+    headline: string;
     company: string;
     role: string;
   };
@@ -31,16 +33,20 @@ export type ResumeRenderSchema = {
 
 export function buildResumeRenderSchema(version: CareerResumeVersionView): ResumeRenderSchema {
   const sections = splitMarkdownSections(version.finalResumeMarkdown);
+  const heading = firstHeading(version.finalResumeMarkdown);
+  const candidateName = isTargetHeading(heading, version) ? "候选人" : heading || "候选人";
   const evidenceSummary = version.evidenceSummary.filter((item) => item.valid && isSafeResumeText(item.content));
   return {
     profile: {
-      title: `${version.company} - ${version.role}`,
+      name: candidateName,
+      title: candidateName,
+      headline: firstQuote(version.finalResumeMarkdown) || `求职方向：${version.role}`,
       company: version.company,
       role: version.role,
     },
     target_role: version.role,
-    summary: safeText(firstText(sections, ["个人总结", "summary", "profile"])),
-    skills: groupSkills(extractList(firstText(sections, ["技能", "skills"]))),
+    summary: safeText(firstText(sections, ["职业概述", "个人总结", "summary", "profile"])),
+    skills: groupSkills(extractList(firstText(sections, ["核心技能", "技能", "skills"]))),
     work_experience: filterSafeList(extractList(firstText(sections, ["工作经历", "work experience", "experience"]))),
     projects: groupProjectBullets(filterSafeList(extractList(firstText(sections, ["项目经历", "projects", "project experience"])))),
     education: filterSafeList(extractList(firstText(sections, ["教育背景", "教育", "education"]))),
@@ -77,7 +83,7 @@ export function assertSafeRenderSchema(schema: ResumeRenderSchema) {
 
 function splitMarkdownSections(markdown: string) {
   const sections = new Map<string, string>();
-  let current = "summary";
+  let current = "__preamble__";
   for (const line of markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").split(/\r?\n/)) {
     const heading = line.match(/^##\s+(.+)$/)?.[1]?.trim();
     if (heading) {
@@ -106,16 +112,25 @@ function extractList(section: string) {
 
 function groupSkills(skills: string[]) {
   const items = filterSafeList(skills);
-  return items.length ? [{ category: "Core Skills", items }] : [];
+  const groups = [
+    { category: "AI 与智能应用", pattern: /agent|llm|rag|aigc|prompt|模型|人工智能/i, items: [] as string[] },
+    { category: "工程开发", pattern: /typescript|javascript|react|next|node|java|go|api|web/i, items: [] as string[] },
+    { category: "数据与自动化", pattern: /python|sql|data|adb|cdp|playwright|automation|数据|自动化/i, items: [] as string[] },
+    { category: "工具与交付", pattern: /.*/i, items: [] as string[] },
+  ];
+  for (const item of items) (groups.find((group) => group.pattern.test(item)) ?? groups.at(-1))?.items.push(item);
+  return groups.filter((group) => group.items.length).map(({ category, items: groupItems }) => ({ category, items: groupItems }));
 }
 
 function groupProjectBullets(bullets: string[]) {
   const projects = new Map<string, ResumeRenderProject>();
   for (const bullet of bullets) {
-    const [rawName, ...rest] = bullet.split(":");
-    const name = cleanProjectName(rawName || "Project");
-    const status = projectStatus(rawName || bullet);
-    const content = safeText(rest.join(":").trim() || bullet);
+    const match = bullet.match(/^(.+?)[：:]\s+(.+)$/) ?? bullet.match(/^([^（：:]+)[：:]\s*(.+)$/);
+    const rawName = match?.[1] ?? "Project";
+    const name = cleanProjectName(rawName).replace(/（项目状态：.+?）/g, "").trim() || "Project";
+    if (isLowSignalProjectName(name)) continue;
+    const status = rawName.match(/项目状态：(.+?)）/)?.[1]?.trim() ?? projectStatus(rawName);
+    const content = safeText(match?.[2]?.trim() || bullet);
     if (!content) continue;
     const existing = projects.get(name) ?? { name, status, bullets: [] };
     existing.status = existing.status || status;
@@ -133,6 +148,23 @@ function projectStatus(value: string) {
   return value.match(/项目状态：(.+?)）/)?.[1]?.trim() ?? "";
 }
 
+function firstHeading(markdown: string) {
+  return markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").match(/^#\s+(.+)$/m)?.[1]?.trim() ?? "";
+}
+
+function firstQuote(markdown: string) {
+  return markdown.match(/^>\s+(.+)$/m)?.[1]?.trim() ?? "";
+}
+
+function isTargetHeading(heading: string, version: CareerResumeVersionView) {
+  const normalized = heading.toLowerCase();
+  return !heading || normalized.includes("定制简历") || normalized.includes(version.company.toLowerCase()) || normalized.includes(version.role.toLowerCase());
+}
+
+function isLowSignalProjectName(name: string) {
+  return /^\.|^(tests?|scripts?|index|workflows?|\d{2}-.+)$/i.test(name.trim());
+}
+
 function filterSafeList(items: string[]) {
   return items.map(safeText).filter(Boolean);
 }
@@ -144,6 +176,7 @@ function safeText(text: string) {
 
 function isSafeResumeText(text: string) {
   if (!text.trim()) return false;
+  if (/TODO|暂无可验证内容|请填写|待填写|placeholder/i.test(text)) return false;
   if (/missing evidence|missing_evidence/i.test(text)) return false;
   if (/production-ready/i.test(text)) return false;
   if (/(api[_ -]?key|cookie|token)\s*[:=]/i.test(text)) return false;

@@ -7,7 +7,7 @@ import type { PersonalInfoContent, WorkExperienceContent } from "@/types/resume"
 const baseResume: ResumeContent = {
   basics: {
     name: "林泽宇",
-    email: "linzeyu@example.com",
+    email: "candidate6@example.com",
     phone: "139 0000 0000",
     city: "杭州",
     links: ["github.com/linzeyu"],

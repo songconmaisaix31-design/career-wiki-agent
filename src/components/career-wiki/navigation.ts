@@ -18,10 +18,12 @@ import {
   Sparkles,
   Upload,
   UserRound,
+  WandSparkles,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
 export type CareerWikiRouteKey =
+  | "quick-start"
   | "dashboard"
   | "workflow"
   | "jd-import"
@@ -56,6 +58,19 @@ export type CareerWikiNavGroup = {
 };
 
 export const careerWikiNavGroups: CareerWikiNavGroup[] = [
+  {
+    label: "开始",
+    items: [
+      {
+        key: "quick-start",
+        label: "一键生成",
+        technicalLabel: "Quick Start",
+        description: "选择简历和 JD，一次生成匹配结果与简历草稿",
+        href: "/career-wiki/quick-start",
+        icon: WandSparkles,
+      },
+    ],
+  },
   {
     label: "总览",
     items: [
@@ -234,11 +249,19 @@ export const careerWikiNavGroups: CareerWikiNavGroup[] = [
 
 export const careerWikiNavItems = careerWikiNavGroups.flatMap((group) => group.items);
 
+const primaryRouteKeys: CareerWikiRouteKey[] = ["quick-start", "resume-versions", "learning-tasks"];
+
+export const careerWikiPrimaryNavItems = careerWikiNavItems.filter((item) => primaryRouteKeys.includes(item.key));
+export const careerWikiAdvancedNavGroups = careerWikiNavGroups
+  .map((group) => ({ ...group, items: group.items.filter((item) => !primaryRouteKeys.includes(item.key)) }))
+  .filter((group) => group.items.length > 0);
+
 export function getCareerWikiNavItem(key: CareerWikiRouteKey) {
   return careerWikiNavItems.find((item) => item.key === key);
 }
 
 export function routeKeyFromPath(pathname: string): CareerWikiRouteKey {
+  if (pathname.includes("/quick-start")) return "quick-start";
   if (pathname.includes("/workflow")) return "workflow";
   if (pathname.includes("/jd-import")) return "jd-import";
   if (pathname.includes("/jd-analyzer")) return "jd-analyzer";

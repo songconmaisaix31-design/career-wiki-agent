@@ -1,6 +1,6 @@
 export type DocumentPurpose = "jd" | "resume_baseline";
 export type DocumentSourceType = "upload" | "local_path" | "pasted_text";
-export type DocumentParser = "plain_text" | "html" | "markitdown";
+export type DocumentParser = "plain_text" | "html" | "markitdown" | "native_pdf" | "native_docx";
 
 export type DocumentInput = {
   file_name: string;

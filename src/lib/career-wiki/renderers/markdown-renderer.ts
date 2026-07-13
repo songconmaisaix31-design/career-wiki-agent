@@ -9,22 +9,24 @@ export function renderResumeMarkdown(schema: ResumeRenderSchema) {
     `version: ${JSON.stringify(schema.metadata.version_name)}`,
     "---",
     "",
-    `# ${schema.profile.company} - ${schema.profile.role}`,
+    `# ${schema.profile.name}`,
     "",
-    "## 个人总结",
+    `> ${schema.profile.headline}`,
+    "",
+    "## 职业概述",
     schema.summary,
     "",
-    "## 技能",
+    "## 核心技能",
     ...schema.skills.flatMap((group) => [`### ${group.category}`, formatList(group.items), ""]),
+    "## 工作经历",
+    formatList(schema.work_experience),
+    "",
     "## 项目经历",
     ...schema.projects.flatMap((project) => [
       `### ${project.name}${project.status ? `（${project.status}）` : ""}`,
       formatList(project.bullets.map((bullet) => linkProject(project.name, bullet))),
       "",
     ]),
-    "## 工作经历",
-    formatList(schema.work_experience),
-    "",
     "## 教育背景",
     formatList(schema.education),
     schema.awards.length ? "\n## Awards\n" + formatList(schema.awards) : "",
@@ -32,7 +34,7 @@ export function renderResumeMarkdown(schema: ResumeRenderSchema) {
 }
 
 function formatList(items: string[]) {
-  return items.length ? items.map((item) => `- ${item}`).join("\n") : "- 暂无可验证内容";
+  return items.length ? items.map((item) => `- ${item}`).join("\n") : "";
 }
 
 function linkProject(name: string, bullet: string) {

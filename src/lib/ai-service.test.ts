@@ -18,8 +18,8 @@ import type { ResumeContent } from "./types";
 const originalResume: ResumeContent = {
   basics: {
     name: "陈同学",
-    email: "chen@example.com",
-    phone: "13800000000",
+    email: "candidate4@example.com",
+    phone: "13800138000",
     city: "上海",
     links: ["https://example.com"],
   },
@@ -47,7 +47,7 @@ describe("resume AI optimization", () => {
       basics: {
         ...originalResume.basics,
         name: "张三",
-        email: "wrong@example.com",
+        email: "candidate9@example.com",
       },
       profile: { title: "增长产品经理", summary: "具备 AI 产品规划与 Prompt 迭代经验。" },
       projects: [

@@ -99,6 +99,18 @@ export const resumeVersionExportInputSchema = z.object({
   versionId: z.string().trim().min(1),
 });
 
+export const manualApplicationHandoffInputSchema = z
+  .object({
+    versionId: z.string().trim().min(1),
+    action: z.enum(["ready_for_manual_send", "manually_sent"]),
+    confirmed: z.boolean().default(false),
+  })
+  .superRefine((input, context) => {
+    if (input.action === "manually_sent" && !input.confirmed) {
+      context.addIssue({ code: "custom", path: ["confirmed"], message: "标记为已手动投递前需要明确确认" });
+    }
+  });
+
 export const documentIngestConfirmInputSchema = z.object({
   purpose: z.enum(["jd", "resume_baseline"]),
   markdown: z.string().trim().min(20, "解析内容太短，无法保存"),

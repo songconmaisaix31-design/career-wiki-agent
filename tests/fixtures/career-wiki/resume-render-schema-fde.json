@@ -1,5 +1,5 @@
 {
-  "profile": { "title": "Acme - FDE / Solution Engineer", "company": "Acme", "role": "FDE / Solution Engineer" },
+  "profile": { "name": "候选人示例", "title": "候选人示例", "headline": "求职方向：FDE / Solution Engineer", "company": "Acme", "role": "FDE / Solution Engineer" },
   "target_role": "FDE / Solution Engineer",
   "summary": "具备客户场景拆解、技术方案表达和跨团队交付材料整理能力。",
   "skills": [{ "category": "Core Skills", "items": ["Solution Design", "TypeScript", "API Integration", "Data Workflow"] }],

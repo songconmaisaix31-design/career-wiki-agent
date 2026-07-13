@@ -1,0 +1,78 @@
+.root {
+  --landing-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.root :where(h1, h2, h3) { text-wrap: balance; }
+.root :where(p) { text-wrap: pretty; }
+
+.root :where(a, button) {
+  transition-duration: 160ms;
+  transition-property: color, background-color, border-color, opacity, transform;
+  transition-timing-function: var(--landing-ease);
+}
+
+.root :where(a, button):active { transform: translateY(1px); }
+
+.panelEnter { animation: panel-enter 280ms var(--landing-ease) both; }
+
+.mediaPlaceholder {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  overflow: hidden;
+  border: 1px dashed currentColor;
+  border-radius: 8px;
+  padding: 2rem;
+}
+
+.mediaPlaceholder::before,
+.mediaPlaceholder::after {
+  position: absolute;
+  width: 4rem;
+  height: 4rem;
+  border-color: currentColor;
+  opacity: 0.16;
+  content: "";
+}
+
+.mediaPlaceholder::before { top: 1rem; left: 1rem; border-top: 1px solid; border-left: 1px solid; }
+.mediaPlaceholder::after { right: 1rem; bottom: 1rem; border-right: 1px solid; border-bottom: 1px solid; }
+
+@keyframes hero-enter {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes media-enter {
+  from { opacity: 0; transform: translateY(24px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes panel-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .heroCopy > * { animation: hero-enter 520ms var(--landing-ease) both; }
+  .heroCopy > :nth-child(2) { animation-delay: 80ms; }
+  .heroCopy > :nth-child(3) { animation-delay: 140ms; }
+  .heroCopy > :nth-child(4) { animation-delay: 200ms; }
+  .heroVisual { animation: media-enter 680ms 220ms var(--landing-ease) both; }
+}
+
+@media (max-width: 639px) {
+  .mediaPlaceholder { align-items: flex-start; flex-direction: column; padding: 1.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root *, .root *::before, .root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

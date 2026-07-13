@@ -203,6 +203,8 @@ export type ResumeExportChecklistItem = {
   reason: string;
 };
 
+export type { ResumeWritingFinding, ResumeWritingFindingCode, ResumeWritingQualityReport, ResumeWritingSeverity } from "./writing-quality/types";
+
 export type CareerResumeVersionView = {
   id: string;
   baselineId: string;
@@ -216,6 +218,7 @@ export type CareerResumeVersionView = {
   diffSummary: ResumeDiffSummary;
   evidenceSummary: ResumeEvidenceItem[];
   riskNotes: string[];
+  writingQuality: import("./writing-quality/types").ResumeWritingQualityReport;
   exportPath: string;
   checklist: ResumeExportChecklistItem[];
   updatedAt: string;
