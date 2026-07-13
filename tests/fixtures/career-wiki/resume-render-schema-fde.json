@@ -1,0 +1,16 @@
+{
+  "profile": { "name": "候选人示例", "title": "候选人示例", "headline": "求职方向：FDE / Solution Engineer", "company": "Acme", "role": "FDE / Solution Engineer" },
+  "target_role": "FDE / Solution Engineer",
+  "summary": "具备客户场景拆解、技术方案表达和跨团队交付材料整理能力。",
+  "skills": [{ "category": "Core Skills", "items": ["Solution Design", "TypeScript", "API Integration", "Data Workflow"] }],
+  "work_experience": ["与业务方沟通需求，输出方案说明、项目边界和交付检查清单。"],
+  "projects": [
+    { "name": "DingTalk Report Automation", "status": "active", "bullets": ["整理日报自动化流程，减少重复汇总工作并保留人工确认节点。"] },
+    { "name": "Vercel Blob URL Server", "status": "MVP", "bullets": ["封装文件访问服务，支持轻量化演示和交付链接管理。"] }
+  ],
+  "education": ["本科，管理科学与工程相关方向"],
+  "awards": [],
+  "evidence_summary": [],
+  "risk_notes": [],
+  "metadata": { "version_id": "fixture-fde", "version_name": "v1", "status": "approved", "generated_at": "2026-07-08T00:00:00.000Z" }
+}

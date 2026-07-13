@@ -1,0 +1,16 @@
+{
+  "profile": { "name": "候选人示例", "title": "候选人示例", "headline": "求职方向：Data Automation Engineer", "company": "Acme", "role": "Data Automation Engineer" },
+  "target_role": "Data Automation Engineer",
+  "summary": "具备数据采集、自动化脚本和多系统数据治理材料整理经验。",
+  "skills": [{ "category": "Core Skills", "items": ["Python", "SQL", "ADB", "CDP", "Data Governance"] }],
+  "work_experience": ["维护数据采集流程说明，定位异常字段并输出修复建议。"],
+  "projects": [
+    { "name": "CDP ADB Data Collection", "status": "active", "bullets": ["设计采集任务记录结构，提升问题复盘和数据校验效率。"] },
+    { "name": "Multi Dashboard Data Governance Agent", "status": "MVP", "bullets": ["整理多看板口径差异和治理任务，为后续自动化校验提供输入。"] }
+  ],
+  "education": ["本科，数据分析相关方向"],
+  "awards": [],
+  "evidence_summary": [],
+  "risk_notes": [],
+  "metadata": { "version_id": "fixture-data", "version_name": "v1", "status": "approved", "generated_at": "2026-07-08T00:00:00.000Z" }
+}

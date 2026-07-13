@@ -1,0 +1,93 @@
+import { prisma } from "@/lib/db";
+import { listAuditLogs } from "./audit/audit-log";
+import { listEvidenceReviewItems } from "./evidence-review/repository";
+import { getCareerWikiHealth } from "./health";
+import { ensureResumeTailorSchema } from "./test-harness-repository";
+import { listWorkflowRuns } from "./workflow/repository";
+
+type CountRow = { count: number };
+
+export async function getCareerWikiDashboard() {
+  await ensureResumeTailorSchema();
+  const [counts, workflows, reviewItems, auditLogs, health] = await Promise.all([
+    getCounts(),
+    listWorkflowRuns(),
+    listEvidenceReviewItems(),
+    listAuditLogs(10),
+    getCareerWikiHealth(),
+  ]);
+
+  return {
+    counts: {
+      ...counts,
+      openMissingEvidence: reviewItems.filter((item) => item.status === "open").length,
+    },
+    workflow: workflows[0] ?? null,
+    evidenceReview: {
+      total: reviewItems.length,
+      openHigh: reviewItems.filter((item) => item.status === "open" && item.severity === "high").length,
+      openMedium: reviewItems.filter((item) => item.status === "open" && item.severity === "medium").length,
+      openLow: reviewItems.filter((item) => item.status === "open" && item.severity === "low").length,
+    },
+    auditLogs,
+    health,
+  };
+}
+
+async function getCounts() {
+  const [
+    profiles,
+    projects,
+    skills,
+    jdTests,
+    fitResults,
+    evidenceItems,
+    verifiedEvidence,
+    resumeVersions,
+    approvedVersions,
+    exportedVersions,
+    exportLogs,
+  ] = await Promise.all([
+    count(`SELECT COUNT(*) AS count FROM "CareerProfile"`),
+    count(`SELECT COUNT(*) AS count FROM "CareerProject"`),
+    count(`SELECT COUNT(*) AS count FROM "CareerSkill"`),
+    count(`SELECT COUNT(*) AS count FROM "CareerJdTest"`),
+    count(`SELECT COUNT(*) AS count FROM "CareerProjectFitResult"`),
+    count(`SELECT COUNT(*) AS count FROM "CareerEvidenceItem"`),
+    count(`SELECT COUNT(*) AS count FROM "CareerEvidenceItem" WHERE "status" = 'verified'`),
+    count(`SELECT COUNT(*) AS count FROM "CareerResumeVersion"`),
+    count(`SELECT COUNT(*) AS count FROM "CareerResumeVersion" WHERE "status" = 'approved'`),
+    count(`SELECT COUNT(*) AS count FROM "CareerResumeVersion" WHERE "status" = 'exported'`),
+    count(`SELECT COUNT(*) AS count FROM "CareerExportLog"`),
+  ]);
+
+  return {
+    profiles,
+    projects,
+    skills,
+    jdTests,
+    fitResults,
+    evidenceItems,
+    verifiedEvidence,
+    resumeVersions,
+    approvedVersions,
+    exportedVersions,
+    exportLogs,
+  };
+}
+
+async function count(sql: string) {
+  try {
+    const rows = await prisma.$queryRawUnsafe<CountRow[]>(sql);
+    return Number(rows[0]?.count ?? 0);
+  } catch (error) {
+    if (isMissingRuntimeTableError(error)) return 0;
+    throw error;
+  }
+}
+
+function isMissingRuntimeTableError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const meta = (error as { meta?: { message?: unknown } }).meta;
+  return typeof meta?.message === "string" && meta.message.includes("no such table");
+}
