@@ -88,7 +88,7 @@ function decideFit(fitScore: number, evidenceScore: number, riskScore: number): 
   if (evidenceScore < 25) return { level: "insufficient_evidence", usage: "needs_manual_review", exclusionReason: "Evidence score is below final resume threshold." };
   if (fitScore >= 72 && riskScore < 70) return { level: "strong_fit", usage: "primary_project", exclusionReason: "" };
   if (fitScore >= 55) return { level: "medium_fit", usage: "supporting_project", exclusionReason: "" };
-  if (fitScore >= 35) return { level: "weak_fit", usage: "mention_only", exclusionReason: "Can be mentioned only if space allows." };
+  if (fitScore >= 30) return { level: "weak_fit", usage: "mention_only", exclusionReason: "Can be mentioned only if space allows." };
   return { level: "not_recommended", usage: "do_not_use", exclusionReason: "Low JD match score." };
 }
 
