@@ -111,12 +111,16 @@ function extractList(section: string) {
 }
 
 function groupSkills(skills: string[]) {
-  const items = filterSafeList(skills);
+  const items = filterSafeList(skills).map((item) => (/^ai coding$/i.test(item) ? "Spec Coding" : item));
   const groups = [
-    { category: "AI 与智能应用", pattern: /agent|llm|rag|aigc|prompt|模型|人工智能/i, items: [] as string[] },
-    { category: "工程开发", pattern: /typescript|javascript|react|next|node|java|go|api|web/i, items: [] as string[] },
-    { category: "数据与自动化", pattern: /python|sql|data|adb|cdp|playwright|automation|数据|自动化/i, items: [] as string[] },
-    { category: "工具与交付", pattern: /.*/i, items: [] as string[] },
+    { category: "AI 工作栈", pattern: /codex|claude code|spec coding|ai coding|cursor|github copilot/i, items: [] as string[] },
+    { category: "Python", pattern: /python|fastapi|pytest|pandas/i, items: [] as string[] },
+    { category: "数据", pattern: /sql|sqlite|json schema|excel|data|数据/i, items: [] as string[] },
+    { category: "工程", pattern: /git|docker|n8n|rest api|http|vitest|eslint|linux|wsl/i, items: [] as string[] },
+    { category: "Web", pattern: /typescript|javascript|react|next|node|prisma|web/i, items: [] as string[] },
+    { category: "内容生产", pattern: /视频剪辑|video editing|aigc 内容生产|aigc content production|内容生产|剪辑/i, items: [] as string[] },
+    { category: "AI 技术", pattern: /agent|llm|rag|langgraph|aigc|prompt|模型|人工智能|tool calling/i, items: [] as string[] },
+    { category: "其他", pattern: /.*/i, items: [] as string[] },
   ];
   for (const item of items) (groups.find((group) => group.pattern.test(item)) ?? groups.at(-1))?.items.push(item);
   return groups.filter((group) => group.items.length).map(({ category, items: groupItems }) => ({ category, items: groupItems }));
@@ -127,9 +131,10 @@ function groupProjectBullets(bullets: string[]) {
   for (const bullet of bullets) {
     const match = bullet.match(/^(.+?)[：:]\s+(.+)$/) ?? bullet.match(/^([^（：:]+)[：:]\s*(.+)$/);
     const rawName = match?.[1] ?? "Project";
-    const name = cleanProjectName(rawName).replace(/（项目状态：.+?）/g, "").trim() || "Project";
+    const heading = splitProjectHeading(rawName);
+    const name = heading.name || "Project";
     if (isLowSignalProjectName(name)) continue;
-    const status = rawName.match(/项目状态：(.+?)）/)?.[1]?.trim() ?? projectStatus(rawName);
+    const status = heading.status || projectStatus(rawName);
     const content = safeText(match?.[2]?.trim() || bullet);
     if (!content) continue;
     const existing = projects.get(name) ?? { name, status, bullets: [] };
@@ -138,6 +143,18 @@ function groupProjectBullets(bullets: string[]) {
     projects.set(name, existing);
   }
   return [...projects.values()];
+}
+
+function splitProjectHeading(value: string) {
+  const marker = "（项目状态：";
+  const markerIndex = value.indexOf(marker);
+  if (markerIndex >= 0 && value.endsWith("）")) {
+    return {
+      name: value.slice(0, markerIndex).trim(),
+      status: value.slice(markerIndex + marker.length, -1).trim(),
+    };
+  }
+  return { name: cleanProjectName(value), status: "" };
 }
 
 function cleanProjectName(value: string) {

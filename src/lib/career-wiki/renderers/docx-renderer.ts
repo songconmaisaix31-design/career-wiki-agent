@@ -24,7 +24,7 @@ export async function renderResumeDocx(schema: ResumeRenderSchema, template: Res
           ...schema.work_experience.map(bullet),
           paragraph("项目经历", HeadingLevel.HEADING_1),
           ...schema.projects.flatMap((project) => [
-            paragraph(`${project.name}${project.status ? ` (${project.status})` : ""}`, HeadingLevel.HEADING_2),
+            paragraph(project.name, HeadingLevel.HEADING_2),
             ...project.bullets.map(bullet),
           ]),
           paragraph("教育背景", HeadingLevel.HEADING_1),

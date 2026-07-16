@@ -121,11 +121,10 @@ function parseWorkHeading(value: string) {
 }
 
 function renderProject(project: ResumeRenderSchema["projects"][number]) {
-  const status = project.status ? ` <span class="status">(${escapeHtml(project.status)})</span>` : "";
   const [introduction, ...highlights] = project.bullets;
   const techStack = inferProjectTechStack(project.bullets);
   return `<article class="project">
-    <div class="project-heading"><h3>${escapeHtml(project.name)}${status}</h3></div>
+    <div class="project-heading"><h3>${escapeHtml(project.name)}</h3></div>
     ${introduction ? `<p class="project-intro"><strong>项目简介：</strong>${escapeHtml(introduction)}</p>` : ""}
     ${techStack.length ? `<p class="project-stack"><strong>技术栈：</strong>${escapeHtml(techStack.join("、"))}</p>` : ""}
     ${highlights.length ? `<div class="project-highlights"><strong>技术亮点：</strong>${renderList(highlights)}</div>` : ""}
@@ -142,6 +141,13 @@ function inferProjectTechStack(bullets: string[]) {
     "Node.js",
     "Python",
     "FastAPI",
+    "Omni",
+    "LangGraph",
+    "Postgres",
+    "PostgreSQL",
+    "Embedding",
+    "Intent Classification",
+    "Markdown Knowledge Base",
     "SQL",
     "Prisma",
     "SQLite",

@@ -10,44 +10,50 @@ export const modernTemplate: ResumeTemplate = {
       accent: "#1976a8",
       bodyClass: "template-modern",
       extraCss: `
-        .template-modern .resume-page { padding: 15mm 14mm 13mm; }
-        .template-modern header { display: grid; gap: 5px; padding: 0 0 13px; border-bottom: 2px solid #202b33; text-align: center; }
-        .template-modern h1 { color: #151b20; font-size: 31px; font-weight: 750; }
-        .template-modern .headline { color: #334651; font-size: 13px; font-weight: 700; }
-        .template-modern section { margin-top: 14px; }
-        .template-modern .summary-section { padding: 0 2px; }
+        @page { size: A4; margin: 8mm 10mm; }
+        .template-modern { font-size: 12.5px; line-height: 1.55; }
+        .template-modern .resume-page { padding: 10mm 11mm; }
+        .template-modern header { display: grid; grid-template-columns: auto 1fr; align-items: end; gap: 18px; padding: 0 0 5px; border-bottom: 2px solid #202b33; text-align: left; }
+        .template-modern h1 { color: #111820; font-size: 26px; font-weight: 750; line-height: 1; }
+        .template-modern .headline { justify-self: end; margin: 0; color: #263943; font-size: 12.5px; font-weight: 700; line-height: 1.2; }
+        .template-modern section { margin-top: 10px; }
+        .template-modern .summary-section { padding: 0; }
         .template-modern .summary-section h2 { display: none; }
-        .template-modern .summary-section p { max-width: 72ch; margin: 0 auto; color: #34434b; text-align: center; }
-        .template-modern h2 { display: inline-block; margin: 0 0 9px; padding: 4px 22px 4px 10px; clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%); background: var(--accent); color: #fff; font-size: 13px; font-weight: 750; }
-        .template-modern .skills { grid-template-columns: 1fr 1fr; gap: 5px 22px; }
-        .template-modern .skill-group { grid-template-columns: 96px 1fr; align-items: start; }
-        .template-modern .skill-group strong { color: #173e52; font-size: 11px; }
-        .template-modern .work-entry { padding: 2px 0 8px; }
-        .template-modern .work-heading { grid-template-columns: minmax(220px, 1fr) minmax(150px, auto) auto; gap: 12px; padding-bottom: 4px; border-bottom: 1px solid #202b33; }
+        .template-modern .summary-section p { max-width: none; margin: 0; color: #34434b; font-size: 12.2px; line-height: 1.55; text-align: left; }
+        .template-modern h2 { display: block; margin: 0 0 5px; padding: 0 0 2px; border-bottom: 1.5px solid #202b33; background: none; color: #111820; font-size: 13.2px; font-weight: 750; line-height: 1.3; }
+        .template-modern .skills { grid-template-columns: 1fr 1fr; gap: 3px 18px; }
+        .template-modern .skill-group { grid-template-columns: 64px 1fr; align-items: start; gap: 7px; }
+        .template-modern .skill-group strong { color: #173e52; font-size: 12px; }
+        .template-modern .work-entry { padding: 0; }
+        .template-modern .work-heading { grid-template-columns: minmax(220px, 1fr) minmax(150px, auto) auto; gap: 10px; padding-bottom: 1px; }
         .template-modern .work-heading h3 { color: #111820; font-size: 13px; font-weight: 750; }
-        .template-modern .work-role { color: #172b36; font-size: 11.5px; text-align: center; }
-        .template-modern .work-date { color: #334651; font-size: 11px; font-weight: 700; }
-        .template-modern .work-context { margin-top: 5px; color: #34434b; font-size: 11px; }
-        .template-modern .work-entry ul { margin-top: 4px; }
-        .template-modern .project { padding: 5px 0 8px; }
-        .template-modern .project + .project { border-top: 1px solid #dfe5e8; padding-top: 10px; }
+        .template-modern .work-role { color: #172b36; font-size: 12.2px; text-align: center; }
+        .template-modern .work-date { color: #334651; font-size: 11.8px; font-weight: 700; }
+        .template-modern .work-context { margin-top: 3px; color: #34434b; font-size: 12px; }
+        .template-modern .work-entry ul { margin-top: 3px; }
+        .template-modern li { margin: 1px 0; }
+        .template-modern .project { padding: 0; }
+        .template-modern .projects-section { break-inside: auto; }
+        .template-modern .project + .project { border-top: 1px solid #dfe5e8; padding-top: 6px; }
         .template-modern .project-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-        .template-modern .project h3 { margin: 0 0 5px; color: #111820; font-size: 14px; font-weight: 750; }
-        .template-modern .project-intro, .template-modern .project-stack { margin: 3px 0; }
+        .template-modern .project h3 { margin: 0 0 3px; color: #111820; font-size: 13px; font-weight: 750; }
+        .template-modern .project-intro, .template-modern .project-stack { margin: 2px 0; }
         .template-modern .project-intro strong, .template-modern .project-stack strong, .template-modern .project-highlights > strong { color: #172b36; }
-        .template-modern .project-highlights { margin-top: 4px; }
-        .template-modern .project-highlights ul { margin-top: 3px; }
-        .template-modern .education-section { margin-top: 10px; color: #52616a; font-size: 10.5px; }
-        .template-modern .education-section h2 { background: #6b7f89; }
-        .template-modern .education-section ul { display: flex; flex-wrap: wrap; gap: 2px 18px; margin-top: 2px; }
+        .template-modern .project-highlights { margin-top: 3px; }
+        .template-modern .project-highlights ul { margin-top: 2px; }
+        .template-modern .education-section { margin-top: 9px; color: #52616a; font-size: 11.5px; }
+        .template-modern .education-section ul { display: flex; flex-wrap: wrap; gap: 1px 18px; margin-top: 1px; }
         .template-modern .education-section li { margin: 0; }
         .template-modern li::marker { color: var(--accent); }
-        @media (max-width: 760px) {
+        @media screen and (max-width: 760px) {
+          .template-modern .resume-page { padding: 8mm 7mm; }
           .template-modern .skills { grid-template-columns: 1fr; }
-          .template-modern .headline { max-width: none; }
-          .template-modern .work-heading { grid-template-columns: 1fr auto; }
-          .template-modern .work-heading h3 { grid-column: 1 / -1; }
+          .template-modern header { grid-template-columns: 1fr; gap: 4px; }
+          .template-modern .headline { justify-self: start; max-width: none; }
+          .template-modern .work-heading { grid-template-columns: 1fr; gap: 1px; }
+          .template-modern .work-heading h3 { grid-column: auto; }
           .template-modern .work-role { text-align: left; }
+          .template-modern .work-date { white-space: normal; }
           .template-modern .education-section ul { display: block; }
         }
       `,

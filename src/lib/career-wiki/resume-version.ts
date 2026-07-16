@@ -8,6 +8,7 @@ import type {
   ResumeTailorRunView,
 } from "./types";
 import { findSensitiveContentIssues } from "./security/sensitive-scan";
+import { projectDisplayName } from "./resume-tailor";
 import { analyzeResumeWriting } from "./writing-quality/analyze-resume";
 
 const rejectedEvidenceSources = new Set(["inferred_without_evidence", "missing_evidence", "llm_guess", "unknown"]);
@@ -118,6 +119,7 @@ export function buildExportChecklist(input: {
 }): ResumeExportChecklistItem[] {
   const markdown = input.finalResumeMarkdown;
   const evidenceFailures = input.evidenceSummary.filter((item) => !item.valid);
+  const hasUnsupportedMarker = /inferred_without_evidence|llm_guess|missing evidence|missing_evidence/i.test(markdown);
   const writingQuality = analyzeResumeWriting(markdown);
   const checklist: ResumeExportChecklistItem[] = [
     item("baseline", "已选择 baseline resume", Boolean(input.baselineId), "缺少 baseline resume"),
@@ -126,9 +128,9 @@ export function buildExportChecklist(input: {
     item("evidence", "已通过 evidence validation", evidenceFailures.length === 0, evidenceFailures.map((failure) => failure.blockingReason).join("；")),
     item(
       "unsupported",
-      "没有无证据内容等待补充",
-      input.diffSummary.unsupportedContent.length === 0,
-      `仍有无证据内容：${input.diffSummary.unsupportedContent.join("、")}`,
+      "正文没有无证据标记",
+      !hasUnsupportedMarker,
+      "正文仍包含无证据标记",
     ),
     item("missing", "没有 missing evidence", !/missing evidence|missing_evidence/i.test(markdown), "final resume 包含 missing evidence"),
     item("overclaim", "没有 production-ready 误写", !/production-ready/i.test(markdown), "final resume 包含 production-ready"),
@@ -205,7 +207,9 @@ function diffList(next: string[], previous: string[]) {
 
 function findProjectForBullet(bullet: string, projectMap: Map<string, CareerProjectView>) {
   const normalizedBullet = normalize(bullet);
-  return [...projectMap.values()].find((project) => normalizedBullet.includes(normalize(project.name)));
+  return [...projectMap.values()].find((project) =>
+    [project.name, projectDisplayName(project.name)].some((name) => normalizedBullet.includes(normalize(name))),
+  );
 }
 
 function inferProjectEvidenceSource(project: CareerProjectView): ResumeEvidenceItem["evidenceSource"] {

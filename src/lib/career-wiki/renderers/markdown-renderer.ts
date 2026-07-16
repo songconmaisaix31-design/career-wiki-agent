@@ -23,7 +23,7 @@ export function renderResumeMarkdown(schema: ResumeRenderSchema) {
     "",
     "## 项目经历",
     ...schema.projects.flatMap((project) => [
-      `### ${project.name}${project.status ? `（${project.status}）` : ""}`,
+      `### ${project.name}`,
       formatList(project.bullets.map((bullet) => linkProject(project.name, bullet))),
       "",
     ]),
