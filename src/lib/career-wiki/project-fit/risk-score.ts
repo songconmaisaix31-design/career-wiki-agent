@@ -21,7 +21,6 @@ export function scoreProjectRisk(project: CareerProjectView, evidenceScore: numb
   }
   if (keywordScore < 20) {
     warnings.push("JD 关键词匹配弱，不建议作为主项目。");
-    score += 25;
   }
   if (containsProductionReadyClaim(project)) {
     warnings.push("发现 production-ready 相关表述，需要人工确认后才能进入正式简历。");
@@ -32,7 +31,8 @@ export function scoreProjectRisk(project: CareerProjectView, evidenceScore: numb
 }
 
 function containsProductionReadyClaim(project: CareerProjectView) {
-  return [project.description, ...project.highlights, ...project.resumeBullets, project.interviewStory].some((item) =>
-    /production-ready|生产级|已上线|稳定支撑/i.test(item),
-  );
+  return [project.description, ...project.highlights, ...project.resumeBullets, project.interviewStory].some((item) => {
+    if (/not production-ready|production[_ -]?ready.{0,80}(?:false|not completed|not verified|未|不得|不能)|非生产级|不能写成 production-ready|不得写成 production-ready|尚未上线|未上线|未验证上线/i.test(item)) return false;
+    return /production-ready|生产级|已上线|稳定支撑/i.test(item);
+  });
 }

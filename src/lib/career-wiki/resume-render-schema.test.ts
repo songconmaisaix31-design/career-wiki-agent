@@ -73,6 +73,47 @@ describe("resume render schema", () => {
     expect(schema.projects[0]?.name).toBe("职业证据与简历智能体");
     expect(schema.projects[0]?.bullets).toHaveLength(3);
   });
+
+  it("renders confirmed coding assistants as a separate AI workflow stack", () => {
+    const schema = buildResumeRenderSchema({
+      ...baseVersion,
+      finalResumeMarkdown: [
+        "# 王聪锐",
+        "> AI 应用开发 / Python 数据自动化",
+        "",
+        "## 核心技能",
+        "- Python",
+        "- TypeScript",
+        "- LangGraph",
+        "- Codex",
+        "- Claude Code",
+        "- AI Coding",
+        "- 视频剪辑",
+        "- AIGC 内容生产",
+      ].join("\n"),
+    });
+
+    expect(schema.skills[0]).toEqual({ category: "AI 工作栈", items: ["Codex", "Claude Code", "Spec Coding"] });
+    expect(schema.skills[1]).toEqual({ category: "编程语言", items: ["Python"] });
+    expect(schema.skills).toContainEqual({ category: "AI 技术", items: ["LangGraph"] });
+    expect(schema.skills).toContainEqual({ category: "内容生产", items: ["视频剪辑", "AIGC 内容生产"] });
+  });
+
+  it("keeps nested project status parentheses out of the project name", () => {
+    const schema = buildResumeRenderSchema({
+      ...baseVersion,
+      finalResumeMarkdown: [
+        "# 王聪锐",
+        "> AI 应用开发 / Python 数据自动化",
+        "",
+        "## 项目经历",
+        "- 商户经营分析与预警平台（项目状态：业务项目｜生产验收（部分验证））: 处理 9,794 个商户。",
+      ].join("\n"),
+    });
+
+    expect(schema.projects[0]?.name).toBe("商户经营分析与预警平台");
+    expect(schema.projects[0]?.status).toBe("业务项目｜生产验收（部分验证）");
+  });
 });
 
 const baseVersion: CareerResumeVersionView = {

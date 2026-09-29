@@ -9,7 +9,6 @@ import type {
   ResumeComparisonReport,
   ResumeTailorRunView,
 } from "./types";
-import { filterProjectsForResume } from "./project-fit/classifier";
 import type { ProjectFitResult } from "./project-fit/types";
 import { analyzeCareerJd, generateSevenDayTasks, sanitizeResumeRoleLabel } from "./rules";
 
@@ -67,22 +66,29 @@ export function createTailorRunDraft({
       skills,
     ),
   };
-  const selectedProjects = selectProjects(jdAnalysis, projects, projectFitResults);
-  const targetedSkills = selectSkills(jdAnalysis, skills, baseline.skills, evidenceItems);
+  const selectedProjects = compactProjectsForStructuredWork(
+    selectProjects(jdAnalysis, projects, projectFitResults),
+    projects,
+    baseline,
+    jdAnalysis,
+    projectFitResults,
+  );
+  const targetedSkills = selectSkills(jdAnalysis, skills, baseline.skills, selectedProjects, evidenceItems);
   const missingEvidence = findMissingEvidence(jdAnalysis, targetedSkills, selectedProjects, baseline, evidenceItems);
   const riskNotes = buildRiskNotes(selectedProjects, projectFitResults, evidenceItems, profile);
   const selectedProjectNames = selectedProjects.map((project) => project.name.toLowerCase());
   const excludedProjectNames = projects.filter(isExplicitlyExcludedProject).map((project) => project.name.toLowerCase());
   const rewrittenProjectBullets = unique([
-    ...selectedProjects.flatMap((project) => rewriteProjectBullets(project, evidenceItems)),
+    ...selectedProjects.flatMap((project) => rewriteProjectBullets(project, jdAnalysis, evidenceItems)),
     ...rankByJdRelevance(baseline.projects, jdAnalysis)
       .filter((item) => !selectedProjectNames.some((name) => item.toLowerCase().includes(name)))
       .filter((item) => !excludedProjectNames.some((name) => item.toLowerCase().includes(name)))
+      .filter((item) => !baseline.workExperience.some(isStructuredWorkHeading) || !isWorkDerivedBaselineProject(item))
       .map(translateBaselineProjectBullet)
-      .slice(0, 4),
+      .slice(0, selectedProjects.length ? 0 : 4),
   ]);
   const rewrittenWorkExperience = prioritizeWorkExperience(baseline.workExperience, jdAnalysis);
-  const targetedSummary = buildTargetedSummary(baseline, targetedSkills, selectedProjects, profile);
+  const targetedSummary = buildTargetedSummary(baseline, targetedSkills, selectedProjects, jdAnalysis, profile);
   const finalResumeMarkdown = renderTailoredResume({
     baseline,
     jdTest,
@@ -114,54 +120,48 @@ export function buildLearningTasksForJd(jdAnalysis: CareerJdAnalysisView, skills
 }
 
 function selectProjects(analysis: CareerJdAnalysisView, projects: CareerProjectView[], projectFitResults: ProjectFitResult[] = []) {
-  const fitSelected = dedupeProjectFamilies(
-    filterProjectsForResume(projects, projectFitResults)
-      .filter(isResumeReadyProject)
-      .sort((left, right) => Number(isBaselineProject(right)) - Number(isBaselineProject(left))),
-  )
-    .slice(0, 3);
-  if (fitSelected.length) return fitSelected;
-  const weakFitScores = new Map(
-    projectFitResults
-      .filter((result) => result.recommended_resume_usage === "mention_only")
-      .map((result) => [result.project_id, result.fit_score]),
-  );
-  const weakFitSelected = dedupeProjectFamilies(
-    projects
-      .filter((project) => weakFitScores.has(project.id) && isResumeReadyProject(project))
-      .sort(
-        (left, right) =>
-          Number(isBaselineProject(right)) - Number(isBaselineProject(left)) ||
-          (weakFitScores.get(right.id) ?? 0) - (weakFitScores.get(left.id) ?? 0),
-      ),
-  )
-    .slice(0, 3);
-  if (weakFitSelected.length) return weakFitSelected;
-  const terms = [...analysis.requiredSkills, ...analysis.responsibilities].join(" ").toLowerCase();
+  return rankProjectsForJd(projects, analysis, projectFitResults).slice(0, 3);
+}
+
+function rankProjectsForJd(projects: CareerProjectView[], analysis: CareerJdAnalysisView, projectFitResults: ProjectFitResult[]) {
+  const fitByProject = new Map(projectFitResults.map((result) => [result.project_id, result]));
   return dedupeProjectFamilies(
     projects
       .filter(isResumeReadyProject)
-      .map((project) => ({
-        project,
-        score: [project.name, project.description, project.status, ...project.techStack, ...project.highlights, ...project.resumeBullets]
-          .join(" ")
-          .toLowerCase()
-          .split(/\s+/)
-          .filter((token) => terms.includes(token)).length,
-      }))
-      .filter((item) => item.score > 0 || analysis.matchedProjects.includes(item.project.name))
-      .sort((left, right) => Number(isBaselineProject(right.project)) - Number(isBaselineProject(left.project)) || right.score - left.score)
-      .map((item) => item.project),
-  ).slice(0, 3);
+      .filter((project) => !isProjectFitExcluded(fitByProject.get(project.id)))
+      .map((project) => {
+        const fit = fitByProject.get(project.id);
+        const relevance = projectJdRelevance(project, analysis);
+        return {
+          project,
+          relevance,
+          score: relevance * 10 + (fit?.fit_score ?? 0) + Number(isBaselineProject(project)) * 4,
+        };
+      })
+      .filter(({ project, relevance }) => relevance > 0 || analysis.matchedProjects.includes(project.name))
+      .sort((left, right) => right.score - left.score || right.relevance - left.relevance)
+      .map(({ project }) => project),
+  );
+}
+
+function isProjectFitExcluded(result?: ProjectFitResult) {
+  return result?.override_type === "force_exclude" || result?.recommended_resume_usage === "do_not_use";
+}
+
+function projectJdRelevance(project: CareerProjectView, analysis: CareerJdAnalysisView) {
+  return scoreTextForJd(
+    [project.name, project.description, project.status, project.interviewStory, ...project.techStack, ...project.highlights, ...project.resumeBullets].join(" "),
+    analysis,
+  );
 }
 
 function isLowSignalProject(name: string) {
-  return /^\.|^(tests?|scripts?|n8n|index|project index|workflows?|\d{2}-.+)$/i.test(name.trim());
+  return /^\.|^(tests?|scripts?|n8n|index|project index|workflows?|changelog|memory|readme|context|project overview|\d{2}-.+)$/i.test(name.trim());
 }
 
 function isResumeReadyProject(project: CareerProjectView) {
-  const evidence = [...project.resumeBullets, ...project.highlights].filter((item) => !isPlaceholderText(item));
-  return !isExplicitlyExcludedProject(project) && !isLowSignalProject(project.name) && evidence.length > 0 && !/namespace|directory|control-plane|目录|索引/i.test(project.description);
+  const resumeBullets = project.resumeBullets.filter((item) => !isPlaceholderText(item) && !hasUnconfirmedEvidenceText(item));
+  return !isExplicitlyExcludedProject(project) && !isLowSignalProject(project.name) && resumeBullets.length > 0 && !/namespace|directory|control-plane|目录|索引/i.test(project.description);
 }
 
 function isExplicitlyExcludedProject(project: CareerProjectView) {
@@ -188,14 +188,98 @@ function projectFamily(name: string) {
   return name.trim().toLowerCase();
 }
 
-function selectSkills(analysis: CareerJdAnalysisView, skills: CareerSkillView[], baselineSkills: string[], evidenceItems: CareerEvidenceItemView[] = []) {
-  const verifiedEvidenceText = verifiedEvidence(evidenceItems)
-    .filter((item) => item.targetType === "skill")
-    .flatMap((item) => [item.title, item.content, item.targetId]);
-  const evidence = new Set([...skills.map((skill) => skill.name.toLowerCase()), ...baselineSkills.map((skill) => skill.toLowerCase()), ...verifiedEvidenceText.map((item) => item.toLowerCase())]);
-  const selected = uniqueCaseInsensitive(analysis.requiredSkills.filter((skill) => hasSkillEvidence(skill, evidence)));
-  const hasSpecificAiSkill = selected.some((skill) => /agent|llm|rag|aigc|模型|智能体/i.test(skill));
-  return selected.filter((skill) => !(skill.toLowerCase() === "ai" && hasSpecificAiSkill));
+function compactProjectsForStructuredWork(
+  selected: CareerProjectView[],
+  projects: CareerProjectView[],
+  baseline: ResumeBaselineView,
+  analysis: CareerJdAnalysisView,
+  projectFitResults: ProjectFitResult[],
+) {
+  if (!baseline.workExperience.some(isStructuredWorkHeading)) return selected;
+  const personalProjects = selected.filter((project) => !isWorkDerivedProject(project));
+  const selectedIds = new Set(personalProjects.map((project) => project.id));
+  const fallback = rankProjectsForJd(projects.filter((project) => !isWorkDerivedProject(project)), analysis, projectFitResults)
+    .filter((project) => !selectedIds.has(project.id));
+  return dedupeProjectFamilies([...personalProjects, ...fallback]).slice(0, 2);
+}
+
+function isCareerWikiProject(project: CareerProjectView) {
+  return /career wiki agent/i.test(project.name);
+}
+
+function isWorkDerivedProject(project: CareerProjectView) {
+  const family = projectFamily(project.name);
+  return family === "finance-agent-platform" || family === "cross-platform-data-collection";
+}
+
+function selectSkills(
+  analysis: CareerJdAnalysisView,
+  skills: CareerSkillView[],
+  baselineSkills: string[],
+  selectedProjects: CareerProjectView[],
+  evidenceItems: CareerEvidenceItemView[] = [],
+) {
+  const verifiedSkillEvidence = verifiedEvidence(evidenceItems)
+    .filter((item) => item.targetType === "skill");
+  const verifiedEvidenceSkills = verifiedSkillEvidence.map((item) => item.targetId);
+  const verifiedEvidenceText = verifiedSkillEvidence.flatMap((item) => [item.title, item.content, item.targetId]);
+  const projectSkills = selectedProjects.flatMap((project) => project.techStack);
+  const resumeReadySkills = skills.filter(isResumeReadySkill).map((skill) => skill.name);
+  const evidenceCandidates = uniqueCaseInsensitive(
+    [...baselineSkills, ...resumeReadySkills, ...projectSkills, ...verifiedEvidenceSkills].map(normalizeResumeSkill),
+  );
+  const evidence = new Set(evidenceCandidates.map((item) => item.toLowerCase()));
+  const directEvidence = new Set([
+    ...baselineSkills.map(normalizeResumeSkill),
+    ...selectedProjects.filter(isBaselineProject).flatMap((project) => project.techStack),
+    ...verifiedEvidenceText,
+  ].map((item) => item.toLowerCase()));
+  const required = analysis.requiredSkills.map(normalizeResumeSkill).filter((skill) =>
+    isHighRiskAiSkill(skill) ? hasSkillEvidence(skill, directEvidence) : hasSkillEvidence(skill, evidence),
+  );
+  const supporting = evidenceCandidates
+    .filter((skill) => skill.trim().toLowerCase() !== "ai")
+    .filter((skill) => !isHighRiskAiSkill(skill) || hasSkillEvidence(skill, directEvidence))
+    .map((skill, index) => ({ skill, index, score: scoreTextForJd(skill, analysis) }))
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map(({ skill }) => skill);
+  const baselineSupporting = baselineSkills.map(normalizeResumeSkill)
+    .map((skill, index) => ({ skill, index, score: scoreTextForJd(skill, analysis) }))
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map(({ skill }) => skill);
+  const aiWorkflowSkills = supporting.filter(isAiWorkflowSkill);
+  const contentProductionSkills = supporting.filter(isContentProductionSkill);
+  const jdMatchedSkills = uniqueCaseInsensitive([
+    ...required,
+    ...supporting.filter((skill) => scoreTextForJd(skill, analysis) > 0),
+  ]);
+  const selected = uniqueCaseInsensitive([
+    ...jdMatchedSkills.slice(0, 9),
+    ...aiWorkflowSkills.slice(0, 3),
+    ...contentProductionSkills.slice(0, 2),
+    ...baselineSupporting,
+  ]).slice(0, 14);
+  return selected.filter((skill) => skill.trim().toLowerCase() !== "ai");
+}
+
+function isAiWorkflowSkill(skill: string) {
+  return /^(codex|claude code|spec coding)$/i.test(skill.trim());
+}
+
+function normalizeResumeSkill(skill: string) {
+  return /^ai coding$/i.test(skill.trim()) ? "Spec Coding" : skill;
+}
+
+function isContentProductionSkill(skill: string) {
+  return /^(视频剪辑|aigc 内容生产|video editing|aigc content production)$/i.test(skill.trim());
+}
+
+function isResumeReadySkill(skill: CareerSkillView) {
+  return !/planned|learning|draft|rejected/i.test(skill.level);
+}
+
+function isHighRiskAiSkill(skill: string) {
+  return /^(agent|llm|rag|mcp|tool calling|function calling|prompt engineering)$/i.test(skill.trim());
 }
 
 function findMissingEvidence(
@@ -238,18 +322,48 @@ function buildRiskNotes(
   ];
 }
 
-function rewriteProjectBullets(project: CareerProjectView, evidenceItems: CareerEvidenceItemView[] = []) {
-  const shouldShowStatus = isBaselineProject(project) || /wip|prototype|mvp|semi-finished|draft/i.test(project.status);
-  const safeStatus = shouldShowStatus
-    ? `（项目状态：${project.status}）`
-    : "";
+function rewriteProjectBullets(project: CareerProjectView, analysis: CareerJdAnalysisView, evidenceItems: CareerEvidenceItemView[] = []) {
+  const status = resumeProjectStatus(project);
+  const safeStatus = status ? `（项目状态：${status}）` : "";
   const evidenceBullets = verifiedEvidence(evidenceItems)
     .filter((item) => item.targetId === project.id || item.targetId === project.name)
     .filter((item) => item.targetType === "project" || item.targetType === "bullet")
     .map((item) => item.content);
-  const base = (project.resumeBullets.length ? project.resumeBullets : project.highlights.length ? project.highlights : evidenceBullets).filter((item) => !hasUnconfirmedEvidenceText(item));
+  const base = rankByJdRelevance(
+    (project.resumeBullets.length ? project.resumeBullets : project.highlights.length ? project.highlights : evidenceBullets)
+      .filter((item) => !hasUnconfirmedEvidenceText(item)),
+    analysis,
+  );
   if (!base.length) return [];
-  return base.slice(0, 3).map((bullet) => `${projectDisplayName(project.name)}${safeStatus}: ${bullet}`);
+  return base.slice(0, 3).map((bullet) => `${projectDisplayName(project.name)}${safeStatus}: ${naturalizeResumeBullet(bullet)}`);
+}
+
+function resumeProjectStatus(project: CareerProjectView) {
+  if (isCareerWikiProject(project)) return "个人项目｜本地 MVP";
+  if (/merchant operations dashboard/i.test(project.name)) return "业务项目｜生产验收（部分验证）";
+  if (/reviewflow ai/i.test(project.name)) return "个人项目｜WIP prototype";
+  if (isBaselineProject(project) || /wip|prototype|mvp|semi-finished|draft/i.test(project.status)) return project.status;
+  return "";
+}
+
+function naturalizeResumeBullet(bullet: string) {
+  if (/^基于 Next\.js、React、TypeScript 与 Prisma 搭建本地优先的职业证据工作台/.test(bullet)) {
+    return "使用 Next.js、React、TypeScript 与 Prisma 搭建本地简历生成平台，支持简历导入、JD 分析、项目匹配、版本管理和多格式导出。";
+  }
+  if (/^设计 evidence validation 与人工审批流程/.test(bullet)) {
+    return "增加简历内容校验和人工审核，缺少来源的内容不会进入正式版本。";
+  }
+  if (/^构建 Vitest、TypeScript、ESLint、healthcheck、integrity 与 backup 验证链路/.test(bullet)) {
+    return "使用 Vitest、TypeScript 和 ESLint 覆盖核心生成与导出流程，并完成本地 MVP 验证。";
+  }
+  return bullet
+    .replace(/受治理规则集/g, "版本化财务规则配置")
+    .replace(/FastAPI adapter/gi, "自建 FastAPI 服务")
+    .replace(/财务数据仅由内网 API 访问，n8n 容器不直接挂载数据目录/g, "将人工下载的财务文件接入自建 FastAPI 服务，n8n 仅通过内部接口调用")
+    .replace(/fail-closed 处理/gi, "遇到未知类型时阻断计算并提示人工检查")
+    .replace(/真实外部发送保留人工确认边界/g, "钉钉发送前保留人工确认")
+    .replace(/partial verification/gi, "已验证范围")
+    .replace(/evidence validation/gi, "简历内容校验");
 }
 
 function verifiedEvidence(evidenceItems: CareerEvidenceItemView[]) {
@@ -260,20 +374,26 @@ function buildTargetedSummary(
   baseline: ResumeBaselineView,
   targetedSkills: string[],
   projects: CareerProjectView[],
+  analysis: CareerJdAnalysisView,
   profile?: CareerProfileView,
 ) {
-  const profileSummary = [profile?.summary, profile?.currentPosition, ...(profile?.strengths ?? [])]
+  const profileSummary = profile?.summary && !isPlaceholderText(profile.summary) ? profile.summary.trim() : "";
+  const profilePosition = [profile?.currentPosition, ...(profile?.strengths ?? [])]
     .find((item) => item && !isPlaceholderText(item));
   const baselineSummary = isPlaceholderText(baseline.selfSummary) ? "" : baseline.selfSummary;
-  const base = (profileSummary || baselineSummary || "具备可验证项目与实践经历").replace(/[。；;\s]+$/u, "");
-  const skillText = targetedSkills.slice(0, 5).join("、");
-  const projectText = projects
-    .slice(0, 3)
-    .map((project) => `${projectDisplayName(project.name)}${/wip|prototype|mvp|semi-finished|draft/i.test(project.status) ? `（${project.status}）` : ""}`)
+  const base = (profileSummary || profilePosition || baselineSummary || "具备可验证项目与实践经历").replace(/[。；;\s]+$/u, "");
+  const skillText = targetedSkills
+    .filter((skill) => scoreTextForJd(skill, analysis) > 0)
+    .slice(0, 5)
     .join("、");
-  const skillSentence = skillText ? `熟悉 ${skillText}` : "具备 AI 应用与数据处理实践";
-  const projectSentence = projectText ? `相关实践覆盖 ${projectText}` : "项目内容均保留可验证边界";
-  return `${base}。${skillSentence}，${projectSentence}。`;
+  const projectText = projects
+    .slice(0, 2)
+    .map((project) => projectDisplayName(project.name))
+    .join("、");
+  const focus = [skillText ? `技术实践覆盖 ${skillText}` : "", projectText ? `项目经历重点呈现 ${projectText}` : ""]
+    .filter(Boolean)
+    .join("；");
+  return `${base}。${focus ? `${focus}。` : ""}`;
 }
 
 function buildComparisonReport({
@@ -375,14 +495,72 @@ export function assertUsableBaseline(baseline: ResumeBaselineView) {
 }
 
 function rankByJdRelevance(items: string[], analysis: CareerJdAnalysisView) {
-  const keywords = unique([...analysis.requiredSkills, ...analysis.responsibilities, ...analysis.bonusPoints])
-    .flatMap((item) => item.toLowerCase().split(/[^\p{L}\p{N}+#.]+/u))
-    .filter((item) => item.length >= 2);
   return items
     .filter((item) => !isPlaceholderText(item))
-    .map((item, index) => ({ item, index, score: keywords.filter((keyword) => item.toLowerCase().includes(keyword)).length }))
+    .map((item, index) => ({ item, index, score: scoreTextForJd(item, analysis) }))
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .map(({ item }) => item);
+}
+
+const JD_RELEVANCE_CONCEPTS: Array<{ jd: RegExp; evidence: RegExp; weight?: number }> = [
+  {
+    jd: /react|next\.?js|vue|typescript|javascript|前端|全栈|full.?stack/i,
+    evidence: /react|next\.?js|vue|typescript|javascript|web|前端|全栈/i,
+  },
+  {
+    jd: /python|fastapi|node\.?js|hono|trpc|后端|backend|api|数据库|database/i,
+    evidence: /python|fastapi|node\.?js|api|prisma|sqlite|mysql|json|服务|接口|后端/i,
+  },
+  {
+    jd: /sql|bi|ecpm|roi|ltv|留存|数据分析|数据运营|财务|指标|experiment|a\/b/i,
+    evidence: /sql|excel|json|30\s*万|300,?000|财务|核算|补贴|经营|数据|报告|规则/i,
+  },
+  {
+    jd: /test|pytest|vitest|测试|质量|审查|review|audit|security|安全|稳定性/i,
+    evidence: /test|pytest|vitest|eslint|检查|测试|质量|审查|audit|安全|异常|阻断/i,
+    weight: 7,
+  },
+  {
+    jd: /workflow|n8n|automation|自动化|编排|任务链|tool calling|function calling/i,
+    evidence: /workflow|n8n|automation|自动化|编排|任务|流程|tool|adapter|适配/i,
+  },
+  {
+    jd: /采集|collection|cdp|adb|uiautomator|集成|integration|受限数据/i,
+    evidence: /采集|collection|cdp|adb|uiautomator|浏览器|web|app|钉钉|集成/i,
+  },
+  {
+    jd: /产品|需求|prd|prototype|原型|用户|运营|上线|交付|反馈/i,
+    evidence: /产品|需求|版本|工作台|平台|导出|交付|用户|流程|模块|反馈/i,
+  },
+  {
+    jd: /agent|llm|rag|prompt|model|模型|大模型|智能体|mcp|aigc|comfyui/i,
+    evidence: /agent|llm|rag|langgraph|prompt|model|模型|大模型|智能体|mcp|aigc|代码审查|简历生成/i,
+  },
+  {
+    jd: /docker|linux|nginx|ci\/cd|github actions|容器|部署/i,
+    evidence: /docker|linux|nginx|ci\/cd|github actions|容器|部署|healthcheck/i,
+  },
+];
+
+function scoreTextForJd(text: string, analysis: CareerJdAnalysisView) {
+  const haystack = text.toLowerCase();
+  const jdText = [analysis.role, analysis.jdText, ...analysis.requiredSkills, ...analysis.responsibilities, ...analysis.bonusPoints]
+    .join(" ")
+    .toLowerCase();
+  const requiredScore = analysis.requiredSkills.reduce(
+    (score, skill) => score + (haystack.includes(skill.toLowerCase()) ? 5 : 0),
+    0,
+  );
+  const keywords = jdText
+    .split(/[^\p{L}\p{N}+#./]+/u)
+    .filter((keyword) => keyword.length >= 2 && keyword.length <= 24)
+    .filter((keyword) => !/^(负责|要求|熟悉|具备|以及|相关|能力|岗位|工作|使用|进行|通过|the|and|with|for|from)$/.test(keyword));
+  const keywordScore = unique(keywords).reduce((score, keyword) => score + (haystack.includes(keyword) ? 1 : 0), 0);
+  const conceptScore = JD_RELEVANCE_CONCEPTS.reduce(
+    (score, concept) => score + (concept.jd.test(jdText) && concept.evidence.test(haystack) ? (concept.weight ?? 4) : 0),
+    0,
+  );
+  return requiredScore + keywordScore + conceptScore;
 }
 
 function prioritizeWorkExperience(items: string[], analysis: CareerJdAnalysisView) {
@@ -402,6 +580,10 @@ function isStructuredWorkHeading(value: string) {
   return parts.length >= 3 && /\d{4}[./-]\d{2}/.test(parts.at(-1) ?? "");
 }
 
+function isWorkDerivedBaselineProject(value: string) {
+  return /finance-agent-lab|n8n|xuanyuan-web-collector|app web collection workflow|财务核算|数据采集/i.test(value);
+}
+
 function candidateNameFrom(profile: CareerProfileView | undefined, baseline: ResumeBaselineView) {
   if (profile?.name.trim()) return profile.name.trim();
   const heading = stripFrontmatter(baseline.originalResumeText).match(/^#\s+(.+)$/m)?.[1]?.trim();
@@ -411,7 +593,7 @@ function candidateNameFrom(profile: CareerProfileView | undefined, baseline: Res
 
 function candidateHeadlineFrom(profile: CareerProfileView | undefined, jdTest: CareerJdTestView) {
   const roles = uniqueCaseInsensitive((profile?.targetRoles ?? []).map(sanitizeResumeRoleLabel)).slice(0, 3);
-  return roles.join(" · ") || sanitizeResumeRoleLabel(jdTest.role) || "AI 应用开发";
+  return roles.join(" / ") || sanitizeResumeRoleLabel(jdTest.role) || "AI 应用开发";
 }
 
 function unique(items: string[]) {
@@ -428,10 +610,11 @@ function uniqueCaseInsensitive(items: string[]) {
   });
 }
 
-function projectDisplayName(name: string) {
+export function projectDisplayName(name: string) {
   const names: Record<string, string> = {
-    "Career Wiki Agent": "职业证据与简历智能体",
-    "finance-agent-lab": "多城市财务治理智能体",
+    "Career Wiki Agent": "职业证据管理与简历生成平台",
+    "Merchant Operations Dashboard": "商户经营分析与预警平台",
+    "finance-agent-lab": "多城市财务核算与数据治理系统",
     n8n: "财务流程编排平台",
     "xuanyuan-web-collector": "跨端业务数据采集与播报系统",
     "App Web Collection Workflow": "跨端业务数据采集与播报系统",

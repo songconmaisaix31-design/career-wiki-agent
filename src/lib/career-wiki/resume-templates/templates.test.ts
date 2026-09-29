@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import aiEngineer from "../../../../tests/fixtures/career-wiki/resume-render-schema-ai-engineer.json";
 import dataAutomation from "../../../../tests/fixtures/career-wiki/resume-render-schema-data-automation.json";
 import fde from "../../../../tests/fixtures/career-wiki/resume-render-schema-fde.json";
+import { renderResumeMarkdown } from "../renderers/markdown-renderer";
 import { sanitizeResumeRoleLabel, sanitizeWindowsFilename } from "../rules";
 import type { ResumeRenderSchema } from "../resume-render-schema";
 import { getResumeTemplate, resumeTemplateIds } from "./templates";
@@ -46,6 +47,40 @@ describe("resume templates", () => {
     expect(html.indexOf('class="projects-section"')).toBeLessThan(html.indexOf('class="education-section"'));
   });
 
+  it("renders the outbound agent stack in the formal project section", () => {
+    const fixture = {
+      ...fixtures[0],
+      projects: [
+        {
+          name: "Outbound Agent",
+          status: "prototype",
+          bullets: ["User phone to Omni, FastAPI, LangGraph, Postgres, text response, and Omni playback."],
+        },
+      ],
+    };
+
+    const html = getResumeTemplate("modern").render(fixture);
+
+    expect(html).toContain("Omni");
+    expect(html).toContain("FastAPI");
+    expect(html).toContain("LangGraph");
+    expect(html).toContain("Postgres");
+  });
+
+  it("keeps internal project status out of formal resume output", () => {
+    const fixture = {
+      ...fixtures[0],
+      projects: fixtures[0].projects.map((project, index) =>
+        index === 0 ? { ...project, status: "personal project | local MVP" } : project,
+      ),
+    };
+
+    for (const templateId of resumeTemplateIds) {
+      expect(getResumeTemplate(templateId).render(fixture)).not.toContain("personal project | local MVP");
+    }
+    expect(renderResumeMarkdown(fixture)).not.toContain("personal project | local MVP");
+  });
+
   it("renders structured work experience as a dense heading and evidence list", () => {
     const fixture = {
       ...fixtures[0],
@@ -62,5 +97,16 @@ describe("resume templates", () => {
     expect(html).toContain('class="work-date"');
     expect(html).toContain('class="work-context"');
     expect(html).toContain("Built repeatable data workflows.");
+  });
+
+  it("uses the compact Chinese print layout for the modern template", () => {
+    const html = getResumeTemplate("modern").render(fixtures[0]);
+
+    expect(html).toContain("@page { size: A4; margin: 8mm 10mm; }");
+    expect(html).toContain("grid-template-columns: auto 1fr");
+    expect(html).toContain("border-bottom: 1.5px solid #202b33");
+    expect(html).toContain("font-size: 12.5px");
+    expect(html).toContain("@media screen and (max-width: 560px)");
+    expect(html).toContain(".template-modern .work-heading { grid-template-columns: 1fr; gap: 1px; }");
   });
 });

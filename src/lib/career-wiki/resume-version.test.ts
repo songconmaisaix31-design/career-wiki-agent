@@ -96,6 +96,39 @@ describe("resume version validation", () => {
     expect(evidence.some((item) => item.section === "project_bullets" && item.evidenceSource === "wiki_project" && item.valid)).toBe(true);
   });
 
+  it("matches localized project display names to source project evidence", () => {
+    const careerWikiProject: CareerProjectView = {
+      ...projects[0],
+      id: "career-wiki-project",
+      name: "Career Wiki Agent",
+      resumeBullets: ["Career Wiki Agent: built evidence-backed resume generation"],
+    };
+    const draft = run({
+      selectedProjects: [careerWikiProject.name],
+      rewrittenProjectBullets: ["职业证据管理与简历生成平台: built evidence-backed resume generation"],
+    });
+
+    const evidence = buildEvidenceSummary(draft, [careerWikiProject]);
+
+    expect(evidence.find((item) => item.section === "project_bullets")?.valid).toBe(true);
+  });
+
+  it("allows unresolved JD gaps when they are absent from final resume content", () => {
+    const draft = run({ missingEvidence: ["Python"] });
+    const diff = buildResumeDiff(baseline, draft);
+    const evidence = buildEvidenceSummary(draft, projects);
+    const checklist = buildExportChecklist({
+      baselineId: draft.baselineId,
+      jdTestId: draft.jdTestId,
+      finalResumeMarkdown: draft.finalResumeMarkdown,
+      diffSummary: diff,
+      evidenceSummary: evidence,
+      riskNotes: draft.riskNotes,
+    });
+
+    expect(checklist.find((item) => item.key === "unsupported")?.passed).toBe(true);
+  });
+
   it("blocks final export when missing evidence exists", () => {
     const draft = run({ missingEvidence: ["Python"] });
     const diff = buildResumeDiff(baseline, draft);

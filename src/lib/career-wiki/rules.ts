@@ -9,24 +9,87 @@ import type { CareerJdInput } from "./schemas";
 const COMMON_SKILLS = [
   "TypeScript",
   "JavaScript",
+  "HTML",
+  "CSS",
   "React",
+  "Vue",
   "Next.js",
+  "Vite",
+  "Tailwind CSS",
+  "TanStack Query",
   "Node.js",
   "Python",
+  "FastAPI",
+  "pytest",
   "SQL",
+  "MySQL",
+  "PostgreSQL",
+  "MongoDB",
+  "Redis",
   "Prisma",
   "Docker",
+  "Linux",
+  "Nginx",
+  "CI/CD",
   "Git",
+  "GitHub",
+  "GitHub Actions",
+  "Codex",
+  "Cursor",
+  "Claude Code",
+  "GitHub Copilot",
+  "Spec Coding",
   "REST API",
+  "JSON Schema",
+  "Vitest",
+  "ESLint",
+  "n8n",
+  "CDP",
+  "ADB",
+  "uiautomator2",
   "数据分析",
+  "数据运营",
+  "BI",
+  "规则引擎",
+  "自动化测试",
+  "代码审查",
+  "安全审计",
+  "需求分析",
+  "产品设计",
+  "PRD",
+  "Figma",
+  "Axure",
+  "UI/UX",
+  "模型评测",
   "机器学习",
   "RAG",
   "LLM",
+  "Agent",
+  "LangChain",
+  "LangGraph",
+  "Tool Calling",
+  "Function Calling",
+  "Structured Output",
+  "Streaming",
+  "Embedding",
+  "Vector Database",
+  "MCP",
+  "AIGC",
+  "ComfyUI",
+  "NL2SQL",
+  "TableRAG",
+  "React Flow",
+  "Kubernetes",
+  "Monorepo",
+  "ORM",
   "Prompt Engineering",
   "项目管理",
   "用户研究",
   "增长分析",
   "A/B Test",
+  "eCPM",
+  "ROI",
+  "LTV",
 ];
 
 export function analyzeCareerJd(
@@ -106,9 +169,9 @@ export function sanitizeResumeRoleLabel(role: string) {
 }
 
 function extractRequiredSkills(text: string, skills: CareerSkillView[]) {
-  const candidates = [...COMMON_SKILLS, ...skills.map((skill) => skill.name), ...skills.map((skill) => skill.category)]
+  const candidates = [...COMMON_SKILLS, ...skills.map((skill) => skill.name)]
     .map((item) => item.trim())
-    .filter(Boolean);
+    .filter((item) => item && normalize(item) !== "ai");
   const unique = new Map<string, string>();
 
   for (const candidate of candidates) {
@@ -117,7 +180,7 @@ function extractRequiredSkills(text: string, skills: CareerSkillView[]) {
     }
   }
 
-  return [...unique.values()].slice(0, 12);
+  return [...unique.values()].slice(0, 18);
 }
 
 function matchProjects(requiredSkills: string[], projects: CareerProjectView[]) {

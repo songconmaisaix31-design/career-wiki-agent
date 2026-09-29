@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createTailorRunDraft, getBaselineQualityIssues, parseBaselineMarkdown } from "./resume-tailor";
 import type { ProjectFitResult } from "./project-fit/types";
-import type { CareerJdTestView, CareerProfileView, CareerProjectView, CareerSkillView, ResumeBaselineView } from "./types";
+import type { CareerEvidenceItemView, CareerJdTestView, CareerProfileView, CareerProjectView, CareerSkillView, ResumeBaselineView } from "./types";
 
 const baselineMarkdown = `---
 type: baseline_resume
@@ -113,7 +113,7 @@ describe("resume tailor", () => {
     const draft = createTailorRunDraft({ baseline, jdTest, projects, skills });
 
     expect(draft.riskNotes.some((note) => note.includes("ReviewFlow AI"))).toBe(true);
-    expect(draft.finalResumeMarkdown).toContain("WIP / prototype");
+    expect(draft.finalResumeMarkdown).toContain("WIP prototype");
     expect(draft.finalResumeMarkdown).not.toContain("production-ready");
     expect(draft.finalResumeMarkdown).not.toContain("暂无可验证内容");
   });
@@ -124,6 +124,8 @@ describe("resume tailor", () => {
     expect(draft.missingEvidence).toContain("Python");
     expect(draft.missingEvidence).toContain("SQL");
     expect(draft.targetedSkills).not.toContain("Python");
+    expect(draft.targetedSkills).toContain("Agent");
+    expect(draft.targetedSkills.map((skill) => skill.toLowerCase())).not.toContain("ai");
     expect(draft.finalResumeMarkdown).not.toContain("Python");
     expect(draft.finalResumeMarkdown).not.toContain("Missing Evidence");
   });
@@ -183,10 +185,10 @@ describe("resume tailor", () => {
     expect(headline).not.toContain("职位长图");
   });
 
-  it("prioritizes projects imported from the baseline resume", () => {
+  it("keeps projects imported from the baseline resume eligible as direct evidence", () => {
     const draft = createTailorRunDraft({ baseline, jdTest, projects, skills, profile });
 
-    expect(draft.selectedProjects[0]).toBe("Personal Agent Project");
+    expect(draft.selectedProjects).toContain("Personal Agent Project");
     expect(draft.finalResumeMarkdown).toContain("completed / portfolio");
   });
 
@@ -214,11 +216,211 @@ describe("resume tailor", () => {
     expect(draft.finalResumeMarkdown).not.toContain("old baseline project bullet");
   });
 
+  it("does not turn metadata-only projects into resume experience", () => {
+    const metadataOnlyProject: CareerProjectView = {
+      ...projects[0],
+      id: "metadata-only",
+      name: "Metadata Only AI Full-stack Project",
+      status: "completed",
+      description: "React Next.js TypeScript Python FastAPI Agent full-stack project metadata.",
+      techStack: ["React", "Next.js", "TypeScript", "Python", "FastAPI", "Agent"],
+      highlights: ["D:\\AI-Workspace\\Projects\\metadata-only", "React", "Python"],
+      resumeBullets: [],
+      interviewStory: "Source path only; no verified resume bullet.",
+    };
+
+    const draft = createTailorRunDraft({ baseline, jdTest, projects: [metadataOnlyProject, ...projects], skills, profile });
+
+    expect(draft.selectedProjects).not.toContain(metadataOnlyProject.name);
+    expect(draft.finalResumeMarkdown).not.toContain("D:\\AI-Workspace\\Projects\\metadata-only");
+  });
+
   it("uses Chinese project display names in the resume body", () => {
     const draft = createTailorRunDraft({ baseline, jdTest, projects, skills, profile });
 
     expect(draft.finalResumeMarkdown).toContain("智能代码审查与交付审计系统");
     expect(draft.finalResumeMarkdown).not.toContain("- ReviewFlow AI:");
+  });
+
+  it("keeps verified baseline skills for ATS scanning", () => {
+    const detailedBaseline = {
+      ...baseline,
+      skills: ["TypeScript", "FastAPI", "pytest", "SQL", "Docker"],
+      originalResumeText: baseline.originalResumeText.replace(/TODO:[^\n]+/g, "本科教育经历"),
+    };
+
+    const draft = createTailorRunDraft({ baseline: detailedBaseline, jdTest, projects, skills, profile });
+
+    expect(draft.targetedSkills).toEqual(expect.arrayContaining(["TypeScript", "FastAPI", "pytest", "SQL", "Docker"]));
+  });
+
+  it("uses two complementary projects when structured work already covers delivery systems", () => {
+    const detailedBaseline = {
+      ...baseline,
+      workExperience: [
+        "Langfang Taixin｜Data Operations｜2026.05-2026.07",
+        "City operations service provider.",
+        "Built Python finance and collection workflows.",
+      ],
+      originalResumeText: baseline.originalResumeText.replace(/TODO:[^\n]+/g, "本科教育经历"),
+    };
+    const careerWikiProject = {
+      ...projects[1],
+      id: "career-wiki",
+      name: "Career Wiki Agent",
+      status: "MVP / partial verification",
+      resumeBullets: [
+        "基于 Next.js、React、TypeScript 与 Prisma 搭建本地优先的职业证据工作台，覆盖简历导入、JD 分析、项目匹配、版本管理和多格式导出。",
+        "设计 evidence validation 与人工审批流程，将缺失证据、风险提示和正式导出分离，避免无证据内容进入最终简历。",
+      ],
+      interviewStory: "Source: wiki/projects/career-wiki-agent.md",
+    };
+    const dashboardProject = {
+      ...projects[1],
+      id: "merchant-dashboard",
+      name: "Merchant Operations Dashboard",
+      status: "active / production / partial",
+      description: "Merchant operations dashboard built with Python, TypeScript and Web APIs.",
+      techStack: ["Python", "Flask", "SQLite", "Next.js", "TypeScript", "REST API"],
+      resumeBullets: [
+        "整合 7 个业务模块，并将取数、入库、异常检测、持续追踪和通知固化为 5 步日常链路。",
+        "在 20260714 数据链路中处理 9,794 个商户，落库 914 个最终告警和 457 条持续追踪记录。",
+      ],
+      interviewStory: "Source: wiki/projects/merchant-operations-dashboard.md",
+    };
+    const workProject = { ...projects[1], id: "finance", name: "finance-agent-lab", interviewStory: "Source: wiki/projects/finance-agent-lab.md" };
+
+    const draft = createTailorRunDraft({ baseline: detailedBaseline, jdTest, projects: [workProject, careerWikiProject, dashboardProject], skills, profile });
+
+    expect(draft.selectedProjects).toHaveLength(2);
+    expect(draft.selectedProjects).toEqual(expect.arrayContaining(["Career Wiki Agent", "Merchant Operations Dashboard"]));
+    expect(draft.finalResumeMarkdown).toContain("职业证据管理与简历生成平台（项目状态：个人项目｜本地 MVP）");
+    expect(draft.finalResumeMarkdown).toContain("商户经营分析与预警平台（项目状态：业务项目｜生产验收（部分验证））");
+    expect(draft.finalResumeMarkdown).toContain("9,794 个商户");
+    expect(draft.finalResumeMarkdown).not.toContain("多城市财务核算与数据治理系统");
+    expect(draft.finalResumeMarkdown).not.toContain("evidence validation");
+  });
+
+  it("keeps JD skills first and includes the verified AI workflow stack", () => {
+    const workflowSkills: CareerSkillView[] = [
+      ...skills,
+      ...["Codex", "Claude Code", "AI Coding", "视频剪辑", "AIGC 内容生产"].map((name, index) => ({
+        id: `workflow-skill-${index}`,
+        name,
+        category: "AI Development Workflow",
+        level: "verified",
+        evidence: "User-confirmed AI-assisted development workflow.",
+        learningPriority: "medium",
+        updatedAt: "2026-07-15T00:00:00.000Z",
+      })),
+    ];
+    const workflowEvidence: CareerEvidenceItemView[] = ["Codex", "Claude Code", "AI Coding", "视频剪辑", "AIGC 内容生产"].map((name, index) => ({
+      id: `workflow-evidence-${index}`,
+      targetType: "skill",
+      targetId: name,
+      jdTestId: "",
+      evidenceType: "user_input",
+      title: `User-confirmed ${name} workflow`,
+      content: `User confirmed ${name} as part of the AI-assisted development workflow.`,
+      sourcePath: "manual_input",
+      sourceExcerpt: "User confirmation",
+      confidence: 90,
+      status: "verified",
+      createdAt: "2026-07-15T00:00:00.000Z",
+      updatedAt: "2026-07-15T00:00:00.000Z",
+    }));
+
+    const draft = createTailorRunDraft({ baseline, jdTest, projects, skills: workflowSkills, profile, evidenceItems: workflowEvidence });
+
+    expect(draft.targetedSkills[0]).toBe("TypeScript");
+    expect(draft.targetedSkills).toEqual(expect.arrayContaining(["Codex", "Claude Code", "Spec Coding"]));
+    expect(draft.targetedSkills).toEqual(expect.arrayContaining(["视频剪辑", "AIGC 内容生产"]));
+    expect(draft.targetedSkills.join(" ")).not.toContain("User confirmed");
+  });
+
+  it("keeps planned skills out of the final resume", () => {
+    const plannedSkill: CareerSkillView = {
+      id: "planned-langgraph",
+      name: "LangGraph",
+      category: "AI Orchestration",
+      level: "planned",
+      evidence: "Project roadmap only; not implemented.",
+      learningPriority: "high",
+      updatedAt: "2026-07-15T00:00:00.000Z",
+    };
+
+    const draft = createTailorRunDraft({ baseline, jdTest, projects, skills: [...skills, plannedSkill], profile });
+
+    expect(draft.targetedSkills).not.toContain("LangGraph");
+    expect(draft.finalResumeMarkdown).not.toContain("LangGraph");
+  });
+
+  it("produces distinct evidence ordering and project choices for different JDs", () => {
+    const detailedBaseline = {
+      ...baseline,
+      skills: ["Python", "TypeScript", "React", "Next.js", "FastAPI", "pytest", "SQL", "Docker", "Git"],
+      workExperience: [
+        "Langfang Taixin｜Data Operations (AI Automation)｜2026.05-2026.07",
+        "City operations service provider for six cities.",
+        "Built Python rules and Excel reports for 300,000 rows of finance data.",
+        "Added 11 quality checks and 83 automated tests for calculation workflows.",
+        "Built CDP, ADB and uiautomator2 collection workflows for Web and Android data.",
+        "Separated source adapters, rule engine, quality checks and audit modules.",
+      ],
+      originalResumeText: baseline.originalResumeText.replace(/TODO:[^\n]+/g, "本科教育经历"),
+    };
+    const jdProjects: CareerProjectView[] = [
+      {
+        ...projects[0],
+        id: "career-wiki",
+        name: "Career Wiki Agent",
+        status: "MVP / partial verification",
+        description: "Next.js and React resume platform with Prisma, API routes and version management.",
+        techStack: ["Next.js", "React", "TypeScript", "Prisma", "Vitest"],
+        resumeBullets: [
+          "Built a Next.js, React, TypeScript and Prisma full-stack workflow for JD analysis and resume versions.",
+          "Added Vitest, TypeScript and ESLint checks for core generation and export paths.",
+        ],
+        interviewStory: "Source: wiki/projects/career-wiki-agent.md",
+      },
+      {
+        ...projects[0],
+        id: "review-flow",
+        name: "ReviewFlow AI",
+        status: "WIP / prototype",
+        description: "Python CLI for deterministic code review and security audit.",
+        techStack: ["Python", "Python AST", "SARIF", "GitHub Actions", "pytest"],
+        resumeBullets: [
+          "Built Python AST rules and SARIF output for code review and security findings.",
+          "Added nine automated tests and checks for mutable GitHub Actions references.",
+        ],
+        interviewStory: "Source: wiki/projects/reviewflow-ai.md",
+      },
+    ];
+    const fullStackJd = {
+      ...jdTest,
+      id: "jd-full-stack",
+      role: "AI Full-stack Engineer",
+      targetDirection: "AI Full-stack Engineer",
+      jdText: "负责 React、Next.js、TypeScript、Python、FastAPI、Prisma、REST API 和数据库全栈开发。",
+    };
+    const qualityJd = {
+      ...jdTest,
+      id: "jd-quality",
+      role: "AI Code Quality Engineer",
+      targetDirection: "AI Code Quality Engineer",
+      jdText: "负责 Python 代码审查、安全审计、Python AST、SARIF、GitHub Actions 和 pytest 自动化测试。",
+    };
+
+    const fullStackDraft = createTailorRunDraft({ baseline: detailedBaseline, jdTest: fullStackJd, projects: jdProjects, skills, profile });
+    const qualityDraft = createTailorRunDraft({ baseline: detailedBaseline, jdTest: qualityJd, projects: jdProjects, skills, profile });
+
+    expect(fullStackDraft.selectedProjects[0]).toBe("Career Wiki Agent");
+    expect(qualityDraft.selectedProjects[0]).toBe("ReviewFlow AI");
+    expect(fullStackDraft.targetedSkills).not.toEqual(qualityDraft.targetedSkills);
+    expect(fullStackDraft.targetedSummary).not.toBe(qualityDraft.targetedSummary);
+    expect(fullStackDraft.rewrittenWorkExperience[2]).not.toBe(qualityDraft.rewrittenWorkExperience[2]);
+    expect(fullStackDraft.finalResumeMarkdown).not.toBe(qualityDraft.finalResumeMarkdown);
   });
 });
 
