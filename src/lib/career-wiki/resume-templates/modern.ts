@@ -45,7 +45,7 @@ export const modernTemplate: ResumeTemplate = {
         .template-modern .education-section ul { display: flex; flex-wrap: wrap; gap: 1px 18px; margin-top: 1px; }
         .template-modern .education-section li { margin: 0; }
         .template-modern li::marker { color: var(--accent); }
-        @media screen and (max-width: 760px) {
+        @media screen and (max-width: 560px) {
           .template-modern .resume-page { padding: 8mm 7mm; }
           .template-modern .skills { grid-template-columns: 1fr; }
           .template-modern header { grid-template-columns: 1fr; gap: 4px; }

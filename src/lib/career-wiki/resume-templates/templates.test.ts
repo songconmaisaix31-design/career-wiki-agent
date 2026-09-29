@@ -106,7 +106,7 @@ describe("resume templates", () => {
     expect(html).toContain("grid-template-columns: auto 1fr");
     expect(html).toContain("border-bottom: 1.5px solid #202b33");
     expect(html).toContain("font-size: 12.5px");
-    expect(html).toContain("@media screen and (max-width: 760px)");
+    expect(html).toContain("@media screen and (max-width: 560px)");
     expect(html).toContain(".template-modern .work-heading { grid-template-columns: 1fr; gap: 1px; }");
   });
 });

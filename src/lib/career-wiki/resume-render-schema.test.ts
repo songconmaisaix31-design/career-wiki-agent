@@ -94,6 +94,7 @@ describe("resume render schema", () => {
     });
 
     expect(schema.skills[0]).toEqual({ category: "AI 工作栈", items: ["Codex", "Claude Code", "Spec Coding"] });
+    expect(schema.skills[1]).toEqual({ category: "编程语言", items: ["Python"] });
     expect(schema.skills).toContainEqual({ category: "AI 技术", items: ["LangGraph"] });
     expect(schema.skills).toContainEqual({ category: "内容生产", items: ["视频剪辑", "AIGC 内容生产"] });
   });

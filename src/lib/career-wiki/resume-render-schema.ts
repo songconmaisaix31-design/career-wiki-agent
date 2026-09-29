@@ -114,7 +114,7 @@ function groupSkills(skills: string[]) {
   const items = filterSafeList(skills).map((item) => (/^ai coding$/i.test(item) ? "Spec Coding" : item));
   const groups = [
     { category: "AI 工作栈", pattern: /codex|claude code|spec coding|ai coding|cursor|github copilot/i, items: [] as string[] },
-    { category: "Python", pattern: /python|fastapi|pytest|pandas/i, items: [] as string[] },
+    { category: "编程语言", pattern: /python|fastapi|pytest|pandas/i, items: [] as string[] },
     { category: "数据", pattern: /sql|sqlite|json schema|excel|data|数据/i, items: [] as string[] },
     { category: "工程", pattern: /git|docker|n8n|rest api|http|vitest|eslint|linux|wsl/i, items: [] as string[] },
     { category: "Web", pattern: /typescript|javascript|react|next|node|prisma|web/i, items: [] as string[] },
